@@ -3,25 +3,93 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #f0f7ff;
+  --foreground: #1e293b;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Nunito', system-ui, -apple-system, sans-serif;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* ── Background decoration animations ─────────────────────────── */
+@keyframes decor-float-a {
+  0%, 100% { transform: translateY(0px) rotate(var(--r, 0deg)); }
+  50%       { transform: translateY(-14px) rotate(var(--r, 0deg)); }
+}
+@keyframes decor-float-b {
+  0%, 100% { transform: translateY(0px) rotate(var(--r, 0deg)); }
+  50%       { transform: translateY(10px) rotate(var(--r, 0deg)); }
+}
+@keyframes decor-sparkle {
+  0%, 100% { transform: scale(1) rotate(var(--r, 0deg));     opacity: var(--op, 0.15); }
+  40%       { transform: scale(1.35) rotate(calc(var(--r, 0deg) + 20deg)); opacity: calc(var(--op, 0.15) * 2); }
+}
+@keyframes decor-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.decor-float-a { animation: decor-float-a var(--dur, 5s) ease-in-out infinite; }
+.decor-float-b { animation: decor-float-b var(--dur, 6s) ease-in-out infinite; }
+.decor-sparkle { animation: decor-sparkle var(--dur, 4s) ease-in-out infinite; }
+.decor-spin    { animation: decor-spin var(--dur, 12s) linear infinite; }
+
+/* ── Weekly bucket animations ──────────────────────────────────── */
+@keyframes bucket-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+@keyframes bubble-rise {
+  0%   { transform: translateY(0) scale(1);   opacity: 0.8; }
+  100% { transform: translateY(-80px) scale(0.5); opacity: 0; }
+}
+@keyframes celebrate-pop {
+  0%   { transform: translateY(0) scale(0.5); opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(-60px) scale(1.2); opacity: 0; }
+}
+@keyframes liquid-wave {
+  0%, 100% { border-radius: 45% 55% 45% 55% / 40% 40% 60% 60%; }
+  50%       { border-radius: 55% 45% 55% 45% / 60% 60% 40% 40%; }
+}
+
+/* ── Print styles ───────────────────────────────────────────────── */
+@media print {
+  /* Hide decorative and interactive elements */
+  nav, footer, .no-print,
+  [data-print-hide] { display: none !important; }
+
+  body {
+    background: white !important;
+    color: black;
+    font-size: 11pt;
+  }
+
+  /* Kill background gradients on header cards */
+  [class*="bg-gradient"] {
+    background: #e5e7eb !important;
+    color: black !important;
+  }
+
+  /* Keep cards but simplify */
+  .rounded-xl, .rounded-2xl, .rounded-3xl {
+    border-radius: 4px !important;
+  }
+
+  /* Remove shadows */
+  * { box-shadow: none !important; }
+
+  /* Show all day columns stacked vertically */
+  .sm\:grid-cols-5 { grid-template-columns: 1fr !important; }
+
+  /* Avoid page breaks inside cards */
+  .space-y-2 > * { break-inside: avoid; }
 }

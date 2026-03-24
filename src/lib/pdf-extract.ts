@@ -1,3 +1,5 @@
+export const runtime = 'nodejs'
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string }>
 

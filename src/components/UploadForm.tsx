@@ -51,7 +51,7 @@ export function UploadForm({ childOptions }: UploadFormProps) {
         storage_url: filePath,
       }),
     })
-    const docData = await docRes.json()
+    const docData = docRes.ok ? await docRes.json() : { id: null }
 
     // 3. Parse with AI
     setState('parsing')
@@ -66,24 +66,34 @@ export function UploadForm({ childOptions }: UploadFormProps) {
       }),
     })
 
-    if (!parseRes.ok) {
-      const err = await parseRes.json()
-      if (err.error === 'image_scan') {
-        setState('error')
-        setErrorMsg(err.message)
-        return
-      }
+    const rawText = await parseRes.text()
+    let parseBody: { error?: string; message?: string; assignments?: unknown[]; study_tasks?: unknown[] }
+    try {
+      parseBody = JSON.parse(rawText)
+    } catch {
       setState('error')
-      setErrorMsg(err.error ?? 'Parsing failed')
+      setErrorMsg(`Server returned unexpected response: ${rawText.slice(0, 200)}`)
       return
     }
 
-    const parsed = await parseRes.json()
+    if (!parseRes.ok) {
+      if (parseBody.error === 'image_scan') {
+        setState('error')
+        setErrorMsg(parseBody.message ?? 'Image scan PDF')
+        return
+      }
+      setState('error')
+      setErrorMsg(parseBody.error ?? 'Parsing failed')
+      return
+    }
+
+    const parsed = parseBody
 
     // 4. Navigate to review page with results in query params
     const reviewData = encodeURIComponent(
       JSON.stringify({
-        assignments: parsed.assignments,
+        assignments: parsed.assignments ?? [],
+        study_tasks: parsed.study_tasks ?? [],
         child_id: selectedChild,
         document_id: docData.id,
       })

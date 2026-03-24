@@ -29,7 +29,7 @@ function ReviewContent() {
     )
   }
 
-  let parsed: { assignments: ReturnType<typeof JSON.parse>; child_id: string; document_id: string }
+  let parsed: { assignments: ReturnType<typeof JSON.parse>; study_tasks: ReturnType<typeof JSON.parse>; child_id: string; document_id: string }
   try {
     parsed = JSON.parse(decodeURIComponent(rawData))
   } catch {
@@ -45,7 +45,8 @@ function ReviewContent() {
 
   return (
     <ReviewExtracted
-      assignments={parsed.assignments}
+      assignments={parsed.assignments ?? []}
+      studyTasks={parsed.study_tasks ?? []}
       childId={parsed.child_id}
       documentId={parsed.document_id}
       childOptions={children}

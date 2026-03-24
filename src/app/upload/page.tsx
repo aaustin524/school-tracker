@@ -15,17 +15,15 @@ export default async function UploadPage() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <div className="mb-6">
-        <a href="/" className="text-sm text-gray-500 hover:text-gray-700">
-          ← Dashboard
-        </a>
-        <h1 className="mt-1 text-2xl font-bold text-gray-900">Upload Teacher Document</h1>
-        <p className="mt-1 text-sm text-gray-600">
+      <div className="mb-6 text-center">
+        <div className="text-5xl mb-3">📄</div>
+        <h1 className="text-3xl font-black text-indigo-800">Upload Teacher Document</h1>
+        <p className="mt-2 text-sm font-medium text-gray-500">
           Upload a PDF and AI will automatically extract this week&apos;s assignments.
         </p>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="rounded-3xl border-2 border-white bg-white/80 backdrop-blur-sm p-6 shadow-lg">
         <UploadForm childOptions={children} />
       </div>
     </div>

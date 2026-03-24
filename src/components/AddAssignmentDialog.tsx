@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { format, addDays, addWeeks, startOfWeek, parseISO } from 'date-fns'
 import type { Child, AssignmentType } from '@/types'
 import { SUBJECTS, ASSIGNMENT_TYPES } from '@/lib/helpers'
 import { Plus, X } from 'lucide-react'
@@ -8,6 +9,30 @@ import { Plus, X } from 'lucide-react'
 interface AddAssignmentDialogProps {
   childOptions: Child[]
   onAdded: () => void
+}
+
+type Recurrence = 'none' | 'weekdays' | 'weekly'
+
+function generateDates(startDate: string, recurrence: Recurrence, weeks: number): string[] {
+  if (recurrence === 'none') return [startDate]
+  const start = parseISO(startDate)
+  const dates: string[] = []
+
+  if (recurrence === 'weekdays') {
+    for (let w = 0; w < weeks; w++) {
+      const monday = startOfWeek(addWeeks(start, w), { weekStartsOn: 1 })
+      for (let d = 0; d < 5; d++) {
+        const date = format(addDays(monday, d), 'yyyy-MM-dd')
+        if (date >= startDate) dates.push(date)
+      }
+    }
+  } else {
+    for (let w = 0; w < weeks; w++) {
+      dates.push(format(addWeeks(start, w), 'yyyy-MM-dd'))
+    }
+  }
+
+  return dates
 }
 
 export function AddAssignmentDialog({ childOptions, onAdded }: AddAssignmentDialogProps) {
@@ -18,26 +43,37 @@ export function AddAssignmentDialog({ childOptions, onAdded }: AddAssignmentDial
   const [subject, setSubject] = useState('General')
   const [dueDate, setDueDate] = useState('')
   const [notes, setNotes] = useState('')
+  const [recurrence, setRecurrence] = useState<Recurrence>('none')
+  const [weeks, setWeeks] = useState(4)
   const [saving, setSaving] = useState(false)
+
+  function reset() {
+    setTitle(''); setDueDate(''); setNotes(''); setRecurrence('none'); setWeeks(4)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title || !dueDate || !childId) return
     setSaving(true)
 
-    await fetch('/api/assignments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ child_id: childId, title, type, subject, due_date: dueDate, notes }),
-    })
+    const dates = generateDates(dueDate, recurrence, weeks)
+    await Promise.all(
+      dates.map((due_date) =>
+        fetch('/api/assignments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ child_id: childId, title, type, subject, due_date, notes }),
+        })
+      )
+    )
 
     setSaving(false)
     setOpen(false)
-    setTitle('')
-    setDueDate('')
-    setNotes('')
+    reset()
     onAdded()
   }
+
+  const dateCount = dueDate && recurrence !== 'none' ? generateDates(dueDate, recurrence, weeks).length : 0
 
   if (!open) {
     return (
@@ -53,10 +89,10 @@ export function AddAssignmentDialog({ childOptions, onAdded }: AddAssignmentDial
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
+      <div className="w-full max-w-md rounded-xl bg-white shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b px-5 py-4">
           <h2 className="text-base font-semibold">Add Assignment</h2>
-          <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-700">
+          <button onClick={() => { setOpen(false); reset() }} className="text-gray-400 hover:text-gray-700">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -81,7 +117,7 @@ export function AddAssignmentDialog({ childOptions, onAdded }: AddAssignmentDial
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Chapter 4 worksheet"
+              placeholder="e.g. Read 20 minutes"
               required
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -114,8 +150,46 @@ export function AddAssignmentDialog({ childOptions, onAdded }: AddAssignmentDial
             </div>
           </div>
 
+          {/* Recurrence */}
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Due date</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Repeat</label>
+            <div className="flex gap-2">
+              {(['none', 'weekdays', 'weekly'] as Recurrence[]).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRecurrence(r)}
+                  className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-bold transition-colors ${
+                    recurrence === r
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-300 text-gray-600 hover:border-blue-300'
+                  }`}
+                >
+                  {r === 'none' ? 'Once' : r === 'weekdays' ? 'Every weekday' : 'Every week'}
+                </button>
+              ))}
+            </div>
+            {recurrence !== 'none' && (
+              <div className="mt-2 flex items-center gap-2">
+                <label className="text-xs text-gray-500">For</label>
+                <select
+                  value={weeks}
+                  onChange={(e) => setWeeks(Number(e.target.value))}
+                  className="rounded border border-gray-300 px-2 py-1 text-sm"
+                >
+                  {[2, 4, 6, 8].map((w) => <option key={w} value={w}>{w} weeks</option>)}
+                </select>
+                {dueDate && (
+                  <span className="text-xs text-blue-600 font-semibold">→ {dateCount} assignments</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              {recurrence !== 'none' ? 'Start date' : 'Due date'}
+            </label>
             <input
               type="date"
               value={dueDate}
@@ -138,7 +212,7 @@ export function AddAssignmentDialog({ childOptions, onAdded }: AddAssignmentDial
           <div className="flex gap-3 pt-1">
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => { setOpen(false); reset() }}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
               Cancel
@@ -148,7 +222,7 @@ export function AddAssignmentDialog({ childOptions, onAdded }: AddAssignmentDial
               disabled={saving}
               className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
-              {saving ? 'Saving...' : 'Add Assignment'}
+              {saving ? 'Saving...' : recurrence !== 'none' ? `Add ${dateCount || ''} Assignments` : 'Add Assignment'}
             </button>
           </div>
         </form>

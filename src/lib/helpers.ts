@@ -9,7 +9,10 @@ import {
   isBefore,
   isAfter,
   startOfDay,
+  addDays,
+  subDays,
 } from 'date-fns'
+import type { Assignment } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -71,6 +74,22 @@ export const ASSIGNMENT_TYPES = [
   'other',
 ] as const
 
+export const SUBJECT_COLORS: Record<string, string> = {
+  'Math':    'bg-teal-100 text-teal-700',
+  'Reading': 'bg-amber-100 text-amber-700',
+  'Science': 'bg-emerald-100 text-emerald-700',
+  'Writing': 'bg-indigo-100 text-indigo-700',
+  'History': 'bg-orange-100 text-orange-700',
+  'Art':     'bg-pink-100 text-pink-700',
+  'Music':   'bg-violet-100 text-violet-700',
+  'Spanish': 'bg-yellow-100 text-yellow-700',
+  'General': 'bg-gray-100 text-gray-600',
+}
+
+export function getSubjectColor(subject: string): string {
+  return SUBJECT_COLORS[subject] ?? SUBJECT_COLORS['General']
+}
+
 export const THEME_COLORS: Record<string, { bg: string; border: string; badge: string; text: string }> = {
   coral: {
     bg: 'bg-orange-50',
@@ -98,10 +117,36 @@ export const THEME_COLORS: Record<string, { bg: string; border: string; badge: s
   },
 }
 
+export function calculateStreak(assignments: Assignment[]): number {
+  let streak = 0
+  for (let i = 1; i <= 365; i++) {
+    const dateStr = format(subDays(new Date(), i), 'yyyy-MM-dd')
+    const dayItems = assignments.filter((a) => a.due_date === dateStr)
+    if (dayItems.length === 0) continue // free day — doesn't break streak
+    if (dayItems.every((a) => a.completed)) {
+      streak++
+    } else {
+      break
+    }
+  }
+  return streak
+}
+
 export function nameToSlug(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-')
 }
 
 export function getDayLabel(dateStr: string): string {
   return format(parseISO(dateStr), 'EEEE') // "Monday", "Tuesday", etc.
+}
+
+export function formatRelativeDate(dateStr: string): string {
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd')
+  if (dateStr === today) return 'Today'
+  if (dateStr === tomorrow) return 'Tomorrow'
+  const date = parseISO(dateStr)
+  const { start, end } = getWeekRange()
+  if (isWithinInterval(date, { start, end })) return format(date, 'EEE') // "Mon", "Tue"
+  return format(date, 'MMM d')
 }
