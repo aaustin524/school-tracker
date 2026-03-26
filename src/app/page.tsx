@@ -377,6 +377,32 @@ export default function DashboardPage() {
     [assignments, childFilter, todayStr, tomorrowStr, twoWeeksStr]
   )
 
+  const groupedUrgentItems = useMemo(() => {
+    const groups: Array<{
+      key: 'overdue' | 'today' | 'tomorrow'
+      label: string
+      items: typeof topUrgentItems
+    }> = [
+      {
+        key: 'overdue',
+        label: 'Overdue',
+        items: topUrgentItems.filter(({ rank }) => rank === 0),
+      },
+      {
+        key: 'today',
+        label: 'Today',
+        items: topUrgentItems.filter(({ rank }) => rank === 1),
+      },
+      {
+        key: 'tomorrow',
+        label: 'Tomorrow',
+        items: topUrgentItems.filter(({ rank }) => rank >= 2),
+      },
+    ]
+
+    return groups.filter((group) => group.items.length > 0)
+  }, [topUrgentItems])
+
   if (loading) return <DashboardSkeleton />
 
   return (
@@ -506,42 +532,53 @@ export default function DashboardPage() {
             <p className="mt-1 text-sm font-medium text-slate-500">You are in a nice, manageable spot.</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
-            {topUrgentItems.map(({ assignment, rank }) => {
-              const child = childrenById.get(assignment.child_id)
-              const cfg = child ? (CHILD_CONFIG[child.theme] ?? CHILD_CONFIG.coral) : CHILD_CONFIG.coral
-              const highlight =
-                rank === 0
-                  ? 'bg-rose-50 text-rose-600'
-                  : rank === 1
-                  ? 'bg-red-50 text-red-600'
-                  : rank === 2
-                  ? 'bg-orange-50 text-orange-600'
-                  : 'bg-indigo-50 text-indigo-600'
-
-              return (
-                <div key={assignment.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
-                  <span className="text-xl">{cfg.emoji}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-black text-slate-800">{assignment.title}</p>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-black ${highlight}`}>
-                        {rank === 0 ? 'Overdue' : rank === 1 ? 'Today' : rank === 2 ? 'Tomorrow' : 'Big item'}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-bold text-slate-500">{child?.name.split(' ')[0] ?? 'Child'}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${getSubjectColor(assignment.subject)}`}>
-                        {assignment.subject}
-                      </span>
-                    </div>
-                  </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
-                    {formatRelativeDate(assignment.due_date)}
-                  </span>
+          <div>
+            {groupedUrgentItems.map((group, groupIndex) => (
+              <div key={group.key} className={groupIndex > 0 ? 'border-t border-slate-100' : ''}>
+                <div className="px-5 pt-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">
+                    {group.label}
+                  </p>
                 </div>
-              )
-            })}
+                <div className="divide-y divide-slate-100">
+                  {group.items.map(({ assignment, rank }) => {
+                    const child = childrenById.get(assignment.child_id)
+                    const cfg = child ? (CHILD_CONFIG[child.theme] ?? CHILD_CONFIG.coral) : CHILD_CONFIG.coral
+                    const highlight =
+                      rank === 0
+                        ? 'bg-rose-50 text-rose-600'
+                        : rank === 1
+                        ? 'bg-red-50 text-red-600'
+                        : rank === 2
+                        ? 'bg-orange-50 text-orange-600'
+                        : 'bg-indigo-50 text-indigo-600'
+
+                    return (
+                      <div key={assignment.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                        <span className="text-xl">{cfg.emoji}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-black text-slate-800">{assignment.title}</p>
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-black ${highlight}`}>
+                              {rank === 0 ? 'Overdue' : rank === 1 ? 'Today' : rank === 2 ? 'Tomorrow' : 'Big item'}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-bold text-slate-500">{child?.name.split(' ')[0] ?? 'Child'}</span>
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${getSubjectColor(assignment.subject)}`}>
+                              {assignment.subject}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                          {formatRelativeDate(assignment.due_date)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
