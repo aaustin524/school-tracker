@@ -109,10 +109,17 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
   const isDueTomorrow = assignment.due_date === tomorrowStr
   const itemType = assignment.is_study_task ? 'study' : assignment.type
   const meta = TYPE_META[itemType]
+  const relativeLabel = !assignment.completed
+    ? isDueToday
+      ? 'Today'
+      : isDueTomorrow
+        ? 'Tomorrow'
+        : null
+    : null
 
   return (
     <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${assignment.completed ? 'opacity-55' : ''}`}>
-      <div className="min-w-0 px-3 py-2.5">
+      <div className="min-w-0 min-h-[84px] px-3 py-2.5">
         <div className="flex items-start gap-2">
           <button
             onClick={() => onToggle(assignment.id, !assignment.completed)}
@@ -124,43 +131,36 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
           >
             {assignment.completed && '✓'}
           </button>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 self-stretch">
             <div className="flex items-start gap-2">
               <span className={`mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${meta.badgeClass}`}>
                 {meta.badge}
               </span>
               <p
                 className={`min-w-0 flex-1 text-sm font-bold leading-snug text-slate-800 ${assignment.completed ? 'line-through text-slate-400' : ''}`}
-                style={compact && !open ? {
+                style={{
                   display: '-webkit-box',
-                  WebkitLineClamp: 2,
+                  WebkitLineClamp: compact ? 1 : 2,
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden',
-                } : undefined}
+                }}
+                title={assignment.title}
               >
                 {assignment.title}
               </p>
             </div>
-            <div className="mt-1.5 flex items-center gap-2 flex-wrap pl-[0.125rem] text-[11px] font-semibold text-slate-500">
+            <div className="mt-1.5 flex items-center gap-1.5 overflow-hidden pl-[0.125rem] text-[11px] font-medium text-slate-400">
               <span className="truncate">{assignment.subject}</span>
-              <span className="text-slate-300">•</span>
-              <span>{format(new Date(assignment.due_date), 'MMM d')}</span>
-              {!assignment.completed && isOverdue && (
+              {relativeLabel && (
                 <>
                   <span className="text-slate-300">•</span>
-                  <span className="font-black text-red-600">Overdue</span>
+                  <span className={`font-semibold ${isDueToday ? 'text-indigo-600' : 'text-orange-500'}`}>{relativeLabel}</span>
                 </>
               )}
-              {!assignment.completed && isDueToday && (
+              {!relativeLabel && !assignment.completed && isOverdue && (
                 <>
                   <span className="text-slate-300">•</span>
-                  <span className="font-black text-indigo-600">Today</span>
-                </>
-              )}
-              {!assignment.completed && isDueTomorrow && (
-                <>
-                  <span className="text-slate-300">•</span>
-                  <span className="font-black text-orange-500">Tomorrow</span>
+                  <span className="font-semibold text-red-600">Overdue</span>
                 </>
               )}
             </div>
@@ -234,7 +234,7 @@ function AssignmentGroup({
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <button
         onClick={() => setOpen((prev) => !prev)}
-        className="flex min-w-0 w-full items-center justify-between px-3 py-2.5 text-left"
+        className="flex min-h-[84px] min-w-0 w-full items-center justify-between px-3 py-2.5 text-left"
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -244,7 +244,7 @@ function AssignmentGroup({
             <span className="text-sm font-black text-slate-800">{label}</span>
           </div>
           <p
-            className="mt-1 text-xs font-medium text-slate-500"
+            className="mt-1 text-xs font-medium text-slate-400"
             style={{
               display: '-webkit-box',
               WebkitLineClamp: 1,
@@ -283,8 +283,8 @@ function countLabel(type: string, count: number) {
     test: count === 1 ? 'Test' : 'Tests',
     quiz: count === 1 ? 'Quiz' : 'Quizzes',
     project: count === 1 ? 'Project' : 'Projects',
-    homework: count === 1 ? 'Homework Item' : 'Homework Items',
-    reading: count === 1 ? 'Reading Task' : 'Reading Tasks',
+    homework: count === 1 ? 'Homework' : 'Homework',
+    reading: count === 1 ? 'Reading' : 'Reading Tasks',
     other: count === 1 ? 'Task' : 'Tasks',
     study: count === 1 ? 'Study Task' : 'Study Tasks',
   }
