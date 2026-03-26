@@ -9,6 +9,7 @@ interface ImportReviewToolbarProps {
   childOptions: Child[]
   bulkSubject: string
   bulkChild: string
+  saving: boolean
   onToggleAll: () => void
   onApproveAll: () => void
   onDeleteSelected: () => void
@@ -16,6 +17,8 @@ interface ImportReviewToolbarProps {
   onBulkSubjectApply: () => void
   onBulkChildChange: (value: string) => void
   onBulkChildApply: () => void
+  onConfirmSave: () => void
+  onCancel: () => void
 }
 
 export function ImportReviewToolbar({
@@ -24,6 +27,7 @@ export function ImportReviewToolbar({
   childOptions,
   bulkSubject,
   bulkChild,
+  saving,
   onToggleAll,
   onApproveAll,
   onDeleteSelected,
@@ -31,6 +35,8 @@ export function ImportReviewToolbar({
   onBulkSubjectApply,
   onBulkChildChange,
   onBulkChildApply,
+  onConfirmSave,
+  onCancel,
 }: ImportReviewToolbarProps) {
   return (
     <div className="rounded-[2rem] border border-white bg-white/90 p-5 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.28)]">
@@ -61,6 +67,19 @@ export function ImportReviewToolbar({
             className="rounded-full bg-rose-100 px-4 py-2 text-sm font-black text-rose-600 transition hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Delete selected
+          </button>
+          <button
+            onClick={onCancel}
+            className="rounded-full border border-slate-200 px-4 py-2 text-sm font-black text-slate-600 transition hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirmSave}
+            disabled={saving || selectedCount === 0}
+            className="rounded-full bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-2 text-sm font-black text-white shadow-lg transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Confirm & Save'}
           </button>
         </div>
       </div>

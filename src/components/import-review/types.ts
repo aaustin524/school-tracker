@@ -1,5 +1,7 @@
 import type { AssignmentType } from '@/types'
 
+export type ImportReviewType = 'test' | 'quiz' | 'project' | 'homework' | 'study'
+
 export interface ParsedImportAssignment {
   id: string
   title: string
@@ -7,6 +9,7 @@ export interface ParsedImportAssignment {
   subject: string
   due_date: string
   type: AssignmentType
+  review_type?: ImportReviewType
   confidence?: number
   notes?: string
   is_study_task?: boolean

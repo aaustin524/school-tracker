@@ -2,13 +2,13 @@
 
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, Upload, WandSparkles } from 'lucide-react'
+import { Loader2, WandSparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Child, ExtractedAssignment } from '@/types'
 import { getSupabase } from '@/lib/supabase'
 import { ImportReviewRow } from '@/components/import-review/ImportReviewRow'
 import { ImportReviewToolbar } from '@/components/import-review/ImportReviewToolbar'
-import type { ParsedImportAssignment } from '@/components/import-review/types'
+import type { ImportReviewType, ParsedImportAssignment } from '@/components/import-review/types'
 
 const CONFIDENCE_TO_SCORE: Record<ExtractedAssignment['confidence'], number> = {
   high: 0.92,
@@ -23,36 +23,56 @@ type ReviewPayload = {
   document_id?: string | null
 }
 
+function toAssignmentType(type: ExtractedAssignment['type']) {
+  if (type === 'test' || type === 'quiz' || type === 'project' || type === 'homework') {
+    return type
+  }
+  return 'homework'
+}
+
+function toReviewType(type: ExtractedAssignment['type']): ImportReviewType {
+  if (type === 'test' || type === 'quiz' || type === 'project' || type === 'homework') {
+    return type
+  }
+  return 'homework'
+}
+
 function normalizeParsedItems(payload: ReviewPayload, children: Child[]): ParsedImportAssignment[] {
   const childName = children.find((child) => child.id === payload.child_id)?.name ?? children[0]?.name ?? ''
   const baseAssignments = payload.assignments ?? []
   const studyTasks = payload.study_tasks ?? []
 
+  const normalizedAssignments: ParsedImportAssignment[] = baseAssignments.map((item, index) => ({
+    id: `assignment-${index}-${item.title}`,
+    title: item.title,
+    child_name: childName,
+    subject: item.subject,
+    due_date: item.due_date ?? '',
+    type: toAssignmentType(item.type),
+    review_type: toReviewType(item.type),
+    confidence: item.confidence ? CONFIDENCE_TO_SCORE[item.confidence] : undefined,
+    notes: item.notes,
+    source_doc_id: payload.document_id ?? null,
+  }))
+
+  const normalizedStudyTasks: ParsedImportAssignment[] = studyTasks.map((item, index) => ({
+    id: `study-${index}-${item.title}`,
+    title: item.title,
+    child_name: childName,
+    subject: item.subject,
+    due_date: item.due_date ?? '',
+    type: toAssignmentType(item.type),
+    review_type: 'study',
+    confidence: item.confidence ? CONFIDENCE_TO_SCORE[item.confidence] : undefined,
+    notes: item.notes,
+    is_study_task: true,
+    for_assignment: item.for_assignment,
+    source_doc_id: payload.document_id ?? null,
+  }))
+
   return [
-    ...baseAssignments.map((item, index) => ({
-      id: `assignment-${index}-${item.title}`,
-      title: item.title,
-      child_name: childName,
-      subject: item.subject,
-      due_date: item.due_date ?? '',
-      type: item.type,
-      confidence: item.confidence ? CONFIDENCE_TO_SCORE[item.confidence] : undefined,
-      notes: item.notes,
-      source_doc_id: payload.document_id ?? null,
-    })),
-    ...studyTasks.map((item, index) => ({
-      id: `study-${index}-${item.title}`,
-      title: item.title,
-      child_name: childName,
-      subject: item.subject,
-      due_date: item.due_date ?? '',
-      type: item.type,
-      confidence: item.confidence ? CONFIDENCE_TO_SCORE[item.confidence] : undefined,
-      notes: item.notes,
-      is_study_task: true,
-      for_assignment: item.for_assignment,
-      source_doc_id: payload.document_id ?? null,
-    })),
+    ...normalizedAssignments,
+    ...normalizedStudyTasks,
   ]
 }
 
@@ -121,7 +141,23 @@ function ImportReviewContent() {
   }, [items])
 
   function updateItem<K extends keyof ParsedImportAssignment>(id: string, field: K, value: ParsedImportAssignment[K]) {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)))
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item
+
+        if (field === 'review_type') {
+          const reviewType = value as ImportReviewType
+          return {
+            ...item,
+            review_type: reviewType,
+            is_study_task: reviewType === 'study',
+            type: (reviewType === 'study' ? 'homework' : reviewType),
+          }
+        }
+
+        return { ...item, [field]: value }
+      })
+    )
   }
 
   function toggleSelected(id: string) {
@@ -282,6 +318,7 @@ function ImportReviewContent() {
         childOptions={children}
         bulkSubject={bulkSubject}
         bulkChild={bulkChild}
+        saving={saving}
         onToggleAll={toggleAll}
         onApproveAll={approveAll}
         onDeleteSelected={deleteSelected}
@@ -289,6 +326,8 @@ function ImportReviewContent() {
         onBulkSubjectApply={applySubjectToSelected}
         onBulkChildChange={setBulkChild}
         onBulkChildApply={applyChildToSelected}
+        onConfirmSave={handleConfirmSave}
+        onCancel={handleCancel}
       />
 
       <div className="space-y-4">
@@ -312,28 +351,6 @@ function ImportReviewContent() {
             />
           ))
         )}
-      </div>
-
-      <div className="flex flex-col gap-3 rounded-[2rem] border border-white bg-white/90 p-5 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.28)] sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm font-medium text-slate-500">
-          Saving uses the existing assignments API and keeps the selected rows only.
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={handleCancel}
-            className="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-black text-slate-600 transition hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirmSave}
-            disabled={saving || selectedCount === 0 || items.length === 0}
-            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 to-sky-500 px-5 py-2.5 text-sm font-black text-white shadow-lg transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            {saving ? 'Saving...' : 'Confirm & Save'}
-          </button>
-        </div>
       </div>
     </div>
   )

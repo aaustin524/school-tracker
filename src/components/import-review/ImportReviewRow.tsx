@@ -1,8 +1,8 @@
 'use client'
 
-import type { Child, AssignmentType } from '@/types'
-import { ASSIGNMENT_TYPES, SUBJECTS, cn } from '@/lib/helpers'
-import type { ParsedImportAssignment } from '@/components/import-review/types'
+import { SUBJECTS, cn } from '@/lib/helpers'
+import type { Child } from '@/types'
+import type { ImportReviewType, ParsedImportAssignment } from '@/components/import-review/types'
 
 interface ImportReviewRowProps {
   item: ParsedImportAssignment
@@ -34,6 +34,7 @@ export function ImportReviewRow({
   onChange,
 }: ImportReviewRowProps) {
   const confidenceStyle = getConfidenceStyle(item.confidence)
+  const reviewType = item.review_type ?? (item.is_study_task ? 'study' : item.type)
 
   return (
     <div
@@ -129,11 +130,11 @@ export function ImportReviewRow({
               Type
             </label>
             <select
-              value={item.type}
-              onChange={(e) => onChange(item.id, 'type', e.target.value as AssignmentType)}
+              value={reviewType}
+              onChange={(e) => onChange(item.id, 'review_type', e.target.value as ImportReviewType)}
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium capitalize text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-400"
             >
-              {ASSIGNMENT_TYPES.map((type) => (
+              {(['test', 'quiz', 'project', 'homework', 'study'] as const).map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>
