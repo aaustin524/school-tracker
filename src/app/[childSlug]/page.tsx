@@ -36,13 +36,47 @@ const TYPE_META = {
   study: { badge: 'STUDY', badgeClass: 'bg-purple-50 text-purple-700 border border-purple-100' },
 } as const
 
-function buildGroupPreview(items: Assignment[]) {
-  if (items.length === 0) return ''
-  if (items.length === 1) return items[0].title
+function formatCompactTitle(title: string) {
+  return title
+    .replace(/\s*-\s*part\s+(\d+)/gi, ' (Pt $1)')
+    .replace(/\s*-\s*chapter\s+(\d+)/gi, ' (Ch $1)')
+    .replace(/\s*-\s*lesson\s+(\d+)/gi, ' (Lsn $1)')
+    .replace(/\s*-\s*section\s+(\d+)/gi, ' (Sec $1)')
+    .replace(/\bpart\s+(\d+)\b/gi, 'Pt $1')
+    .replace(/\bchapter\s+(\d+)\b/gi, 'Ch $1')
+    .replace(/\bsection\s+(\d+)\b/gi, 'Sec $1')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
 
-  const first = items[0].title
-  const remaining = items.length - 1
-  return `${first} + ${remaining} more`
+function buildGroupPreview(items: Assignment[], type: string) {
+  if (items.length === 0) return ''
+  if (items.length === 1) return formatCompactTitle(items[0].title)
+
+  const compactTitles = items.map((item) => formatCompactTitle(item.title))
+  const baseNames = compactTitles.map((title) =>
+    title
+      .replace(/\(([^)]+)\)/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+  )
+  const uniqueBaseNames = Array.from(new Set(baseNames.filter(Boolean)))
+  const partMatches = compactTitles
+    .map((title) => title.match(/\(Pt\s+([^)]+)\)/i)?.[1]?.trim())
+    .filter((part): part is string => Boolean(part))
+
+  if (uniqueBaseNames.length === 1) {
+    if (partMatches.length >= 2) {
+      return `${uniqueBaseNames[0]} (Pt ${partMatches.join(', ')})`
+    }
+    return `${uniqueBaseNames[0]} (multiple)`
+  }
+
+  if (type === 'study') {
+    return `${compactTitles[0]} + ${items.length - 1} more`
+  }
+
+  return `${compactTitles[0]} + ${items.length - 1} more`
 }
 
 // ── Assignment type card ────────────────────────────────────────────
@@ -118,6 +152,7 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
   const isDueTomorrow = assignment.due_date === tomorrowStr
   const itemType = assignment.is_study_task ? 'study' : assignment.type
   const meta = TYPE_META[itemType]
+  const compactTitle = formatCompactTitle(assignment.title)
   const relativeLabel = !assignment.completed
     ? isDueToday
       ? 'Today'
@@ -149,7 +184,7 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
                 className={`min-w-0 flex-1 text-[13px] font-bold leading-5 text-slate-800 break-words ${assignment.completed ? 'line-through text-slate-400' : ''}`}
                 style={{
                   display: '-webkit-box',
-                  WebkitLineClamp: compact ? 1 : 2,
+                  WebkitLineClamp: 2,
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden',
                   wordBreak: 'break-word',
@@ -157,7 +192,7 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
                 }}
                 title={assignment.title}
               >
-                {assignment.title}
+                {compactTitle}
               </p>
             </div>
             <div className="mt-1.5 flex min-w-0 items-center gap-1.5 overflow-hidden pl-[0.125rem] text-xs font-medium text-slate-500">
@@ -240,6 +275,7 @@ function AssignmentGroup({
   const sample = items[0]
   const itemType = sample.is_study_task ? 'study' : sample.type
   const meta = TYPE_META[itemType]
+  const previewText = buildGroupPreview(items, itemType)
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -264,8 +300,9 @@ function AssignmentGroup({
               wordBreak: 'break-word',
               overflowWrap: 'anywhere',
             }}
+            title={items.map((item) => item.title).join('\n')}
           >
-            {buildGroupPreview(items)}
+            {previewText}
           </p>
         </div>
         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
