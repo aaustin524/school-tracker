@@ -1,26 +1,98 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { format, addDays } from 'date-fns'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { addDays, format } from 'date-fns'
+import { AlertTriangle, CalendarDays, CheckCircle2, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Assignment, Child } from '@/types'
 import { getSupabase } from '@/lib/supabase'
 import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
 import { AssignmentCard } from '@/components/AssignmentCard'
-import { nameToSlug, getWeekRange, getSubjectColor, formatRelativeDate } from '@/lib/helpers'
 import { DashboardSkeleton } from '@/components/Skeleton'
-import { AlertTriangle } from 'lucide-react'
+import { getSubjectColor, getWeekRange, formatRelativeDate, nameToSlug } from '@/lib/helpers'
 
 const CHILD_CONFIG: Record<string, { emoji: string; gradient: string; ring: string; accent: string; fillTop: string; fillBottom: string }> = {
-  coral: { emoji: '⭐', gradient: 'from-red-500 to-yellow-400', ring: 'ring-red-300',    accent: '#f97316', fillTop: '#fde047', fillBottom: '#ef4444' },
-  sky:   { emoji: '✨', gradient: 'from-purple-500 to-pink-400', ring: 'ring-purple-300', accent: '#a855f8', fillTop: '#e879f9', fillBottom: '#7c3aed' },
+  coral: { emoji: '⭐', gradient: 'from-red-500 to-yellow-400', ring: 'ring-red-300', accent: '#f97316', fillTop: '#fde047', fillBottom: '#ef4444' },
+  sky: { emoji: '✨', gradient: 'from-purple-500 to-pink-400', ring: 'ring-purple-300', accent: '#a855f8', fillTop: '#e879f9', fillBottom: '#7c3aed' },
 }
 
 const TYPE_ICONS: Record<string, string> = { test: '📋', quiz: '✏️', project: '🔬' }
 
-// ── Mini bucket for dashboard child cards ────────────────────────
+const TIME_FILTERS = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This Week' },
+  { key: 'upcoming', label: 'Upcoming' },
+] as const
+
+type TimeFilter = (typeof TIME_FILTERS)[number]['key']
+
+type ChildDashboardData = {
+  child: Child
+  dueTodayItems: Assignment[]
+  overdueItems: Assignment[]
+  completedTodayItems: Assignment[]
+  primaryItems: Assignment[]
+  secondaryItems: Assignment[]
+  weekPct: number
+  weekTotal: number
+}
+
+function sortByDueDate(items: Assignment[]) {
+  return [...items].sort((a, b) => a.due_date.localeCompare(b.due_date))
+}
+
+function matchesTimeFilter(dateStr: string, filter: TimeFilter, todayStr: string, fridayStr: string) {
+  if (filter === 'today') return dateStr === todayStr
+  if (filter === 'week') return dateStr >= todayStr && dateStr <= fridayStr
+  return dateStr > fridayStr
+}
+
+function getUrgencyRank(assignment: Assignment, todayStr: string, tomorrowStr: string, twoWeeksStr: string) {
+  if (assignment.completed) return null
+  if (assignment.due_date < todayStr) return 0
+  if (assignment.due_date === todayStr) return 1
+  if (assignment.due_date === tomorrowStr) return 2
+  if (
+    !assignment.is_study_task &&
+    (assignment.type === 'test' || assignment.type === 'quiz' || assignment.type === 'project') &&
+    assignment.due_date <= twoWeeksStr
+  ) {
+    return 3
+  }
+  return null
+}
+
+function getPrimarySectionLabel(filter: TimeFilter) {
+  if (filter === 'today') return '📅 Due Today'
+  if (filter === 'week') return '🗓️ This Week'
+  return '🌤️ Upcoming'
+}
+
+function getEmptyStateCopy(filter: TimeFilter) {
+  if (filter === 'today') {
+    return {
+      emoji: '🎉',
+      title: 'Free day!',
+      body: 'Nothing due today. That is a win.',
+    }
+  }
+  if (filter === 'week') {
+    return {
+      emoji: '🌈',
+      title: 'This week looks calm',
+      body: 'No unfinished items left for the school week.',
+    }
+  }
+  return {
+    emoji: '✨',
+    title: 'Future is looking clear',
+    body: 'Nothing waiting beyond this week right now.',
+  }
+}
+
 function MiniBucket({ pct, theme }: { pct: number; theme: string }) {
   const [animPct, setAnimPct] = useState(0)
+
   useEffect(() => {
     const t = setTimeout(() => setAnimPct(pct), 350)
     return () => clearTimeout(t)
@@ -29,45 +101,67 @@ function MiniBucket({ pct, theme }: { pct: number; theme: string }) {
   const cfg = CHILD_CONFIG[theme] ?? CHILD_CONFIG.coral
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex min-w-[54px] flex-col items-center gap-1.5">
       <div style={{ position: 'relative', width: 42, height: 52 }}>
-        {/* Handle */}
-        <div style={{
-          position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)',
-          width: 26, height: 13,
-          border: `2.5px solid rgba(255,255,255,0.8)`, borderBottom: 'none',
-          borderRadius: '13px 13px 0 0',
-        }} />
-        {/* Body */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          border: `2.5px solid rgba(255,255,255,0.8)`,
-          borderRadius: '4px 4px 15px 15px',
-          overflow: 'hidden',
-          background: 'rgba(255,255,255,0.2)',
-        }}>
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0,
-            height: `${animPct}%`,
-            background: `linear-gradient(to top, ${cfg.fillBottom}, ${cfg.fillTop})`,
-            transition: 'height 1.3s cubic-bezier(0.4,0,0.2,1)',
-            opacity: 0.9,
-          }} />
-          <div style={{
-            position: 'absolute', inset: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{
-              fontSize: 9, fontWeight: 900, fontFamily: 'Nunito, sans-serif',
-              color: 'rgba(255,255,255,0.95)',
-              textShadow: '0 1px 3px rgba(0,0,0,0.3)',
-            }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: -11,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 26,
+            height: 13,
+            border: '2.5px solid rgba(255,255,255,0.8)',
+            borderBottom: 'none',
+            borderRadius: '13px 13px 0 0',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            border: '2.5px solid rgba(255,255,255,0.8)',
+            borderRadius: '4px 4px 15px 15px',
+            overflow: 'hidden',
+            background: 'rgba(255,255,255,0.2)',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: `${animPct}%`,
+              background: `linear-gradient(to top, ${cfg.fillBottom}, ${cfg.fillTop})`,
+              transition: 'height 1.3s cubic-bezier(0.4,0,0.2,1)',
+              opacity: 0.9,
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 900,
+                fontFamily: 'Nunito, sans-serif',
+                color: 'rgba(255,255,255,0.95)',
+                textShadow: '0 1px 3px rgba(0,0,0,0.3)',
+              }}
+            >
               {pct}%
             </span>
           </div>
         </div>
       </div>
-      <span className="text-xs font-black text-white/80">week</span>
+      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">week</span>
     </div>
   )
 }
@@ -76,6 +170,8 @@ export default function DashboardPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [children, setChildren] = useState<Child[]>([])
   const [loading, setLoading] = useState(true)
+  const [childFilter, setChildFilter] = useState<string>('all')
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('today')
   const pendingDeletes = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   const loadData = useCallback(async () => {
@@ -83,18 +179,20 @@ export default function DashboardPage() {
       fetch('/api/assignments'),
       getSupabase().from('children').select('*').order('name'),
     ])
+
     setAssignments(await assignmentsRes.json())
     setChildren(childrenRes.data ?? [])
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   async function handleToggleComplete(id: string, completed: boolean) {
     const updated = assignments.map((a) => (a.id === id ? { ...a, completed } : a))
     setAssignments(updated)
 
-    // Fire confetti if all of a child's today assignments are done
     if (completed) {
       const today = format(new Date(), 'yyyy-MM-dd')
       const a = assignments.find((x) => x.id === id)
@@ -113,24 +211,30 @@ export default function DashboardPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ completed }),
     })
+
     toast.success(completed ? 'Marked complete! ✓' : 'Marked incomplete')
   }
 
   function handleDelete(id: string) {
     const item = assignments.find((a) => a.id === id)
     setAssignments((prev) => prev.filter((a) => a.id !== id))
+
     const timeout = setTimeout(() => {
       pendingDeletes.current.delete(id)
       fetch(`/api/assignments/${id}`, { method: 'DELETE' })
     }, 5000)
+
     pendingDeletes.current.set(id, timeout)
+
     toast('Assignment removed', {
       action: {
         label: 'Undo',
         onClick: () => {
           clearTimeout(pendingDeletes.current.get(id))
           pendingDeletes.current.delete(id)
-          if (item) setAssignments((prev) => [...prev, item].sort((a, b) => a.due_date.localeCompare(b.due_date)))
+          if (item) {
+            setAssignments((prev) => [...prev, item].sort((a, b) => a.due_date.localeCompare(b.due_date)))
+          }
         },
       },
     })
@@ -140,71 +244,343 @@ export default function DashboardPage() {
     setAssignments((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
   }
 
+  const today = new Date()
+  const todayStr = format(today, 'yyyy-MM-dd')
+  const tomorrowStr = format(addDays(today, 1), 'yyyy-MM-dd')
+  const todayLabel = format(today, 'EEEE, MMMM d')
+  const { start } = getWeekRange()
+  const mondayStr = format(start, 'yyyy-MM-dd')
+  const fridayStr = format(addDays(start, 4), 'yyyy-MM-dd')
+  const twoWeeksStr = format(addDays(today, 14), 'yyyy-MM-dd')
+
+  const childrenById = useMemo(
+    () => new Map(children.map((child) => [child.id, child])),
+    [children]
+  )
+
+  const selectedChildren = useMemo(
+    () => (childFilter === 'all' ? children : children.filter((child) => child.id === childFilter)),
+    [childFilter, children]
+  )
+
+  const dueToday = useMemo(
+    () => assignments.filter((a) => !a.completed && a.due_date === todayStr),
+    [assignments, todayStr]
+  )
+
+  const completedToday = useMemo(
+    () => assignments.filter((a) => a.completed && a.due_date === todayStr),
+    [assignments, todayStr]
+  )
+
+  const overdue = useMemo(
+    () => assignments.filter((a) => !a.completed && a.due_date < todayStr),
+    [assignments, todayStr]
+  )
+
+  const upcoming = useMemo(
+    () => sortByDueDate(assignments.filter((a) => !a.completed && a.due_date >= todayStr)),
+    [assignments, todayStr]
+  )
+
+  const upcomingBig = useMemo(
+    () =>
+      upcoming.filter(
+        (a) =>
+          !a.is_study_task &&
+          (a.type === 'test' || a.type === 'quiz' || a.type === 'project') &&
+          a.due_date <= twoWeeksStr
+      ),
+    [twoWeeksStr, upcoming]
+  )
+
+  const overdueByChild = useMemo(
+    () =>
+      selectedChildren
+        .map((child) => ({
+          child,
+          items: overdue.filter((a) => a.child_id === child.id),
+        }))
+        .filter((entry) => entry.items.length > 0),
+    [overdue, selectedChildren]
+  )
+
+  const weekStats = useMemo(() => {
+    const stats = new Map<string, { weekTotal: number; weekDone: number; weekPct: number }>()
+
+    children.forEach((child) => {
+      const childAssignments = assignments.filter((a) => a.child_id === child.id)
+      const weekItems = childAssignments.filter((a) => a.due_date >= mondayStr && a.due_date <= fridayStr)
+      const weekDone = weekItems.filter((a) => a.completed).length
+      const weekTotal = weekItems.length
+
+      stats.set(child.id, {
+        weekTotal,
+        weekDone,
+        weekPct: weekTotal > 0 ? Math.round((weekDone / weekTotal) * 100) : 0,
+      })
+    })
+
+    return stats
+  }, [assignments, children, fridayStr, mondayStr])
+
+  const childCards = useMemo<ChildDashboardData[]>(
+    () =>
+      selectedChildren.map((child) => {
+        const childAssignments = sortByDueDate(assignments.filter((a) => a.child_id === child.id))
+        const dueTodayItems = childAssignments.filter((a) => !a.completed && a.due_date === todayStr)
+        const overdueItems = childAssignments.filter((a) => !a.completed && a.due_date < todayStr)
+        const completedTodayItems = childAssignments.filter((a) => a.completed && a.due_date === todayStr)
+
+        const primaryItems = childAssignments.filter(
+          (a) => !a.completed && matchesTimeFilter(a.due_date, timeFilter, todayStr, fridayStr)
+        )
+
+        const secondaryItems = childAssignments.filter((a) => {
+          if (a.completed) return false
+          if (timeFilter === 'today') return a.due_date > todayStr
+          if (timeFilter === 'week') return a.due_date > fridayStr
+          return false
+        }).slice(0, 3)
+
+        const stats = weekStats.get(child.id) ?? { weekTotal: 0, weekDone: 0, weekPct: 0 }
+
+        return {
+          child,
+          dueTodayItems,
+          overdueItems,
+          completedTodayItems,
+          primaryItems,
+          secondaryItems,
+          weekPct: stats.weekPct,
+          weekTotal: stats.weekTotal,
+        }
+      }),
+    [assignments, fridayStr, selectedChildren, timeFilter, todayStr, weekStats]
+  )
+
+  const filteredUpcomingBig = useMemo(
+    () =>
+      upcomingBig.filter((assignment) => {
+        const matchesChild = childFilter === 'all' || assignment.child_id === childFilter
+        return matchesChild && matchesTimeFilter(assignment.due_date, timeFilter, todayStr, fridayStr)
+      }),
+    [childFilter, fridayStr, timeFilter, todayStr, upcomingBig]
+  )
+
+  const topUrgentItems = useMemo(
+    () =>
+      assignments
+        .filter((assignment) => childFilter === 'all' || assignment.child_id === childFilter)
+        .map((assignment) => ({
+          assignment,
+          rank: getUrgencyRank(assignment, todayStr, tomorrowStr, twoWeeksStr),
+        }))
+        .filter((entry): entry is { assignment: Assignment; rank: number } => entry.rank !== null)
+        .sort((a, b) => {
+          if (a.rank !== b.rank) return a.rank - b.rank
+          if (a.assignment.due_date !== b.assignment.due_date) {
+            return a.assignment.due_date.localeCompare(b.assignment.due_date)
+          }
+          return a.assignment.title.localeCompare(b.assignment.title)
+        })
+        .slice(0, 5),
+    [assignments, childFilter, todayStr, tomorrowStr, twoWeeksStr]
+  )
+
   if (loading) return <DashboardSkeleton />
 
-  const todayStr    = format(new Date(), 'yyyy-MM-dd')
-  const todayLabel  = format(new Date(), 'EEEE, MMMM d')
-  const { start }   = getWeekRange()
-  const mondayStr   = format(start, 'yyyy-MM-dd')
-  const fridayStr   = format(addDays(start, 4), 'yyyy-MM-dd')
-  const twoWeeksStr = format(addDays(new Date(), 14), 'yyyy-MM-dd')
-
-  // ── Overdue: incomplete items before today ───────────────────
-  const overdueByChild = children.map((child) => ({
-    child,
-    items: assignments.filter(
-      (a) => a.child_id === child.id && !a.completed && a.due_date < todayStr
-    ),
-  })).filter((x) => x.items.length > 0)
-
-  // ── Upcoming tests/quizzes/projects (next 14 days) ───────────
-  const upcomingBig = assignments
-    .filter((a) =>
-      !a.completed &&
-      !a.is_study_task &&
-      (a.type === 'test' || a.type === 'quiz' || a.type === 'project') &&
-      a.due_date >= todayStr &&
-      a.due_date <= twoWeeksStr
-    )
-    .sort((a, b) => a.due_date.localeCompare(b.due_date))
-
-  // ── Upcoming = not completed, today or future ────────────────
-  const upcoming = assignments
-    .filter((a) => !a.completed && a.due_date >= todayStr)
-    .sort((a, b) => a.due_date.localeCompare(b.due_date))
-
   return (
-    <div className="space-y-6">
-      {/* Date header */}
-      <div className="text-center">
-        <p className="text-sm font-bold text-indigo-400 uppercase tracking-widest mb-1">Today</p>
-        <h1 className="text-4xl font-black text-indigo-800">{todayLabel}</h1>
+    <div className="space-y-8 pb-4">
+      <div className="rounded-[2rem] border border-white/70 bg-gradient-to-br from-white via-indigo-50/80 to-amber-50/70 p-6 shadow-[0_24px_60px_-24px_rgba(79,70,229,0.35)]">
+        <div className="text-center">
+          <p className="mb-2 text-xs font-black uppercase tracking-[0.35em] text-indigo-500">Family Dashboard</p>
+          <h1 className="text-4xl font-black tracking-tight text-slate-800">{todayLabel}</h1>
+          <p className="mx-auto mt-2 max-w-2xl text-sm font-medium text-slate-500">
+            A calm, clear look at what needs attention today and what is coming next.
+          </p>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-3xl border border-amber-100 bg-white/90 p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-amber-500">
+              <CalendarDays className="h-4 w-4" />
+              <span className="text-xs font-black uppercase tracking-[0.22em]">Due Today</span>
+            </div>
+            <p className="mt-3 text-3xl font-black text-slate-800">{dueToday.length}</p>
+            <p className="mt-1 text-sm font-medium text-slate-500">Assignments still waiting today</p>
+          </div>
+
+          <div className="rounded-3xl border border-rose-100 bg-white/90 p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-rose-500">
+              <AlertTriangle className="h-4 w-4" />
+              <span className="text-xs font-black uppercase tracking-[0.22em]">Overdue</span>
+            </div>
+            <p className="mt-3 text-3xl font-black text-slate-800">{overdue.length}</p>
+            <p className="mt-1 text-sm font-medium text-slate-500">Past-due items to wrap up first</p>
+          </div>
+
+          <div className="rounded-3xl border border-emerald-100 bg-white/90 p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-emerald-500">
+              <CheckCircle2 className="h-4 w-4" />
+              <span className="text-xs font-black uppercase tracking-[0.22em]">Completed Today</span>
+            </div>
+            <p className="mt-3 text-3xl font-black text-slate-800">{completedToday.length}</p>
+            <p className="mt-1 text-sm font-medium text-slate-500">Due-today items already finished</p>
+          </div>
+
+          <div className="rounded-3xl border border-indigo-100 bg-white/90 p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-indigo-500">
+              <Sparkles className="h-4 w-4" />
+              <span className="text-xs font-black uppercase tracking-[0.22em]">Big Next 14 Days</span>
+            </div>
+            <p className="mt-3 text-3xl font-black text-slate-800">{upcomingBig.length}</p>
+            <p className="mt-1 text-sm font-medium text-slate-500">Tests, quizzes, and projects ahead</p>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-3xl border border-slate-200/70 bg-white/80 p-4 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-2 text-slate-600">
+              <SlidersHorizontal className="h-4 w-4" />
+              <span className="text-xs font-black uppercase tracking-[0.24em]">Filter View</span>
+            </div>
+
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setChildFilter('all')}
+                  className={`rounded-full px-4 py-2 text-sm font-black transition ${
+                    childFilter === 'all'
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  All
+                </button>
+                {children.map((child) => {
+                  const cfg = CHILD_CONFIG[child.theme] ?? CHILD_CONFIG.coral
+                  const active = childFilter === child.id
+
+                  return (
+                    <button
+                      key={child.id}
+                      onClick={() => setChildFilter(child.id)}
+                      className={`rounded-full px-4 py-2 text-sm font-black transition ${
+                        active
+                          ? 'text-white shadow-sm'
+                          : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
+                      }`}
+                      style={active ? { backgroundColor: cfg.accent } : undefined}
+                    >
+                      {cfg.emoji} {child.name.split(' ')[0]}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {TIME_FILTERS.map((option) => (
+                  <button
+                    key={option.key}
+                    onClick={() => setTimeFilter(option.key)}
+                    className={`rounded-full px-4 py-2 text-sm font-black transition ${
+                      timeFilter === option.key
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ── Overdue banner ─────────────────────────────────────── */}
-      {overdueByChild.length > 0 && (
-        <div className="rounded-2xl bg-red-50 border-2 border-red-200 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-            <p className="text-sm font-black text-red-600 uppercase tracking-wide">Overdue Items</p>
+      <div className="rounded-3xl border border-white bg-white/90 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.35)] overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+          <div className="rounded-2xl bg-rose-100 p-2 text-rose-500">
+            <AlertTriangle className="h-4 w-4" />
           </div>
-          <div className="space-y-2">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-[0.22em] text-slate-700">Needs Attention First</h2>
+            <p className="text-sm text-slate-500">The top urgent unfinished items across the planner.</p>
+          </div>
+        </div>
+
+        {topUrgentItems.length === 0 ? (
+          <div className="px-5 py-8 text-center">
+            <p className="text-3xl">🌟</p>
+            <p className="mt-2 text-base font-black text-slate-700">Nothing urgent right now</p>
+            <p className="mt-1 text-sm font-medium text-slate-500">You are in a nice, manageable spot.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {topUrgentItems.map(({ assignment, rank }) => {
+              const child = childrenById.get(assignment.child_id)
+              const cfg = child ? (CHILD_CONFIG[child.theme] ?? CHILD_CONFIG.coral) : CHILD_CONFIG.coral
+              const highlight =
+                rank === 0
+                  ? 'bg-rose-50 text-rose-600'
+                  : rank === 1
+                  ? 'bg-red-50 text-red-600'
+                  : rank === 2
+                  ? 'bg-orange-50 text-orange-600'
+                  : 'bg-indigo-50 text-indigo-600'
+
+              return (
+                <div key={assignment.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                  <span className="text-xl">{cfg.emoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-black text-slate-800">{assignment.title}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-black ${highlight}`}>
+                        {rank === 0 ? 'Overdue' : rank === 1 ? 'Today' : rank === 2 ? 'Tomorrow' : 'Big item'}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500">{child?.name.split(' ')[0] ?? 'Child'}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${getSubjectColor(assignment.subject)}`}>
+                        {assignment.subject}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                    {formatRelativeDate(assignment.due_date)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {overdueByChild.length > 0 && (
+        <div className="rounded-3xl border border-red-100 bg-red-50/80 p-5 shadow-sm">
+          <div className="mb-3 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+            <p className="text-sm font-black uppercase tracking-[0.22em] text-red-600">Overdue Items</p>
+          </div>
+          <div className="space-y-3">
             {overdueByChild.map(({ child, items }) => {
               const cfg = CHILD_CONFIG[child.theme] ?? CHILD_CONFIG.coral
+
               return (
-                <div key={child.id} className="flex items-center gap-3 flex-wrap">
+                <div key={child.id} className="flex flex-wrap items-center gap-3 rounded-2xl bg-white/80 px-4 py-3">
                   <span className="text-lg">{cfg.emoji}</span>
-                  <span className="text-sm font-black text-gray-700">{child.name.split(' ')[0]}</span>
+                  <span className="text-sm font-black text-slate-700">{child.name.split(' ')[0]}</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {items.map((a) => (
-                      <span key={a.id} className="rounded-full bg-red-100 border border-red-200 px-2.5 py-1 text-xs font-bold text-red-700">
-                        {a.title} · <span className="font-black">{formatRelativeDate(a.due_date)}</span>
+                    {items.map((assignment) => (
+                      <span key={assignment.id} className="rounded-full border border-red-200 bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">
+                        {assignment.title} · <span className="font-black">{formatRelativeDate(assignment.due_date)}</span>
                       </span>
                     ))}
                   </div>
                   <a
                     href={`/${nameToSlug(child.name)}`}
-                    className="ml-auto text-xs font-black text-red-500 hover:text-red-700 underline underline-offset-2"
+                    className="ml-auto text-xs font-black text-red-500 underline underline-offset-2 hover:text-red-700"
                   >
                     View →
                   </a>
@@ -215,98 +591,113 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── Per-child today cards ──────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        {children.map((child) => {
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        {childCards.map(({ child, dueTodayItems, overdueItems, completedTodayItems, primaryItems, secondaryItems, weekPct, weekTotal }) => {
           const cfg = CHILD_CONFIG[child.theme] ?? CHILD_CONFIG.coral
-
-          const todayItems = assignments.filter(
-            (a) => a.child_id === child.id && a.due_date === todayStr && !a.completed
-          )
-          const upcomingItems = upcoming.filter(
-            (a) => a.child_id === child.id && a.due_date !== todayStr
-          ).slice(0, 3)
-          const doneToday = assignments.filter(
-            (a) => a.child_id === child.id && a.due_date === todayStr && a.completed
-          )
-
-          // Mini bucket stats
-          const weekItems  = assignments.filter((a) => a.child_id === child.id && a.due_date >= mondayStr && a.due_date <= fridayStr)
-          const weekDone   = weekItems.filter((a) => a.completed).length
-          const weekTotal  = weekItems.length
-          const weekPct    = weekTotal > 0 ? Math.round((weekDone / weekTotal) * 100) : 0
+          const emptyState = getEmptyStateCopy(timeFilter)
 
           return (
-            <div key={child.id} className="rounded-3xl bg-white/80 border-2 border-white shadow-lg overflow-hidden">
-              {/* Child header */}
-              <div className={`bg-gradient-to-r ${cfg.gradient} px-5 py-4 text-white`}>
-                <div className="flex items-center justify-between">
+            <div key={child.id} className="overflow-hidden rounded-[2rem] border border-white bg-white/90 shadow-[0_22px_50px_-28px_rgba(15,23,42,0.4)]">
+              <div className={`bg-gradient-to-r ${cfg.gradient} px-5 py-5 text-white`}>
+                <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <span className="text-4xl">{cfg.emoji}</span>
                     <div>
-                      <div className="font-black text-xl">{child.name.split(' ')[0]}</div>
-                      <div className="text-sm font-semibold opacity-80">{child.grade}</div>
+                      <div className="text-xl font-black">{child.name.split(' ')[0]}</div>
+                      <div className="text-sm font-semibold opacity-85">{child.grade}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+
+                  <div className="flex items-center gap-3">
                     {weekTotal > 0 && <MiniBucket pct={weekPct} theme={child.theme} />}
                     <a
                       href={`/${nameToSlug(child.name)}`}
-                      className="text-xs font-black bg-white/20 hover:bg-white/30 rounded-full px-3 py-1.5 transition-colors"
+                      className="rounded-full bg-white/20 px-3 py-1.5 text-xs font-black transition-colors hover:bg-white/30"
                     >
                       Full week →
                     </a>
                   </div>
                 </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="rounded-2xl bg-white/18 px-3 py-2 backdrop-blur-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">Due today</p>
+                    <p className="mt-1 text-lg font-black">{dueTodayItems.length}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/18 px-3 py-2 backdrop-blur-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">Overdue</p>
+                    <p className="mt-1 text-lg font-black">{overdueItems.length}</p>
+                  </div>
+                  <div className="rounded-2xl bg-white/18 px-3 py-2 backdrop-blur-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">Done today</p>
+                    <p className="mt-1 text-lg font-black">{completedTodayItems.length}</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="p-4 space-y-4">
-                {/* Today's items */}
+              <div className="space-y-5 p-5">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-wider text-gray-400 mb-2">
-                    📅 Due Today
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.22em] text-slate-400">
+                    {getPrimarySectionLabel(timeFilter)}
                   </p>
-                  {todayItems.length === 0 ? (
-                    <div className="rounded-2xl border-2 border-dashed border-green-200 bg-green-50/50 p-4 text-center">
-                      <span className="text-3xl">🎉</span>
-                      <p className="text-sm font-black text-green-600 mt-1">Free day!</p>
-                      <p className="text-xs text-green-400 font-medium">Nothing due today</p>
+
+                  {primaryItems.length === 0 ? (
+                    <div className="rounded-3xl border border-dashed border-emerald-200 bg-emerald-50/70 p-5 text-center">
+                      <p className="text-3xl">{emptyState.emoji}</p>
+                      <p className="mt-2 text-sm font-black text-emerald-700">{emptyState.title}</p>
+                      <p className="mt-1 text-xs font-medium text-emerald-600">{emptyState.body}</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {todayItems.map((a) => (
-                        <AssignmentCard key={a.id} assignment={a} child={child}
-                          onToggleComplete={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+                    <div className="space-y-2.5">
+                      {primaryItems.map((assignment) => (
+                        <AssignmentCard
+                          key={assignment.id}
+                          assignment={assignment}
+                          child={child}
+                          onToggleComplete={handleToggleComplete}
+                          onDelete={handleDelete}
+                          onEdit={handleEdit}
+                        />
                       ))}
                     </div>
                   )}
                 </div>
 
-                {/* Coming up */}
-                {upcomingItems.length > 0 && (
+                {secondaryItems.length > 0 && (
                   <div>
-                    <p className="text-xs font-black uppercase tracking-wider text-gray-400 mb-2">
-                      ⏭️ Coming Up
+                    <p className="mb-2 text-xs font-black uppercase tracking-[0.22em] text-slate-400">
+                      {timeFilter === 'today' ? '⏭️ Coming Up Next' : '🌤️ After This Week'}
                     </p>
-                    <div className="space-y-2">
-                      {upcomingItems.map((a) => (
-                        <AssignmentCard key={a.id} assignment={a} child={child}
-                          onToggleComplete={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+                    <div className="space-y-2.5">
+                      {secondaryItems.map((assignment) => (
+                        <AssignmentCard
+                          key={assignment.id}
+                          assignment={assignment}
+                          child={child}
+                          onToggleComplete={handleToggleComplete}
+                          onDelete={handleDelete}
+                          onEdit={handleEdit}
+                        />
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Completed today */}
-                {doneToday.length > 0 && (
+                {completedTodayItems.length > 0 && (
                   <div>
-                    <p className="text-xs font-black uppercase tracking-wider text-green-400 mb-2">
-                      ✅ Done Today ({doneToday.length})
+                    <p className="mb-2 text-xs font-black uppercase tracking-[0.22em] text-emerald-500">
+                      ✅ Done Today ({completedTodayItems.length})
                     </p>
-                    <div className="space-y-2">
-                      {doneToday.map((a) => (
-                        <AssignmentCard key={a.id} assignment={a} child={child}
-                          onToggleComplete={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+                    <div className="space-y-2.5">
+                      {completedTodayItems.map((assignment) => (
+                        <AssignmentCard
+                          key={assignment.id}
+                          assignment={assignment}
+                          child={child}
+                          onToggleComplete={handleToggleComplete}
+                          onDelete={handleDelete}
+                          onEdit={handleEdit}
+                        />
                       ))}
                     </div>
                   </div>
@@ -317,64 +708,66 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* ── Upcoming tests & projects (next 14 days) ──────────── */}
-      {upcomingBig.length > 0 && (
-        <div className="rounded-3xl bg-white/80 border-2 border-white shadow-lg overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-            <span className="text-lg">🗓️</span>
-            <h2 className="text-sm font-black uppercase tracking-wider text-indigo-600">
-              Upcoming Tests &amp; Projects
-            </h2>
-            <span className="ml-auto rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-black text-indigo-600">
-              next 14 days
-            </span>
+      <div className="overflow-hidden rounded-3xl border border-white bg-white/90 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.35)]">
+        <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
+          <span className="text-lg">🗓️</span>
+          <h2 className="text-sm font-black uppercase tracking-[0.22em] text-indigo-600">
+            Big Items
+          </h2>
+          <span className="ml-auto rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-black text-indigo-600">
+            {timeFilter === 'today' ? 'today view' : timeFilter === 'week' ? 'this week' : 'upcoming'}
+          </span>
+        </div>
+
+        {filteredUpcomingBig.length === 0 ? (
+          <div className="px-5 py-8 text-center">
+            <p className="text-3xl">📚</p>
+            <p className="mt-2 text-base font-black text-slate-700">No big items in this view</p>
+            <p className="mt-1 text-sm font-medium text-slate-500">Tests, quizzes, and projects will show up here when they matter.</p>
           </div>
-          <div className="divide-y divide-gray-50">
-            {upcomingBig.map((a) => {
-              const child = children.find((c) => c.id === a.child_id)
-              const cfg   = child ? (CHILD_CONFIG[child.theme] ?? CHILD_CONFIG.coral) : CHILD_CONFIG.coral
-              const icon  = TYPE_ICONS[a.type] ?? '📌'
-              const isToday    = a.due_date === todayStr
-              const isTomorrow = a.due_date === format(addDays(new Date(), 1), 'yyyy-MM-dd')
-              const urgent     = isToday || isTomorrow
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {filteredUpcomingBig.map((assignment) => {
+              const child = childrenById.get(assignment.child_id)
+              const cfg = child ? (CHILD_CONFIG[child.theme] ?? CHILD_CONFIG.coral) : CHILD_CONFIG.coral
+              const icon = TYPE_ICONS[assignment.type] ?? '📌'
+              const isToday = assignment.due_date === todayStr
+              const isTomorrow = assignment.due_date === tomorrowStr
+              const urgent = isToday || isTomorrow
 
               return (
-                <div key={a.id} className={`flex items-center gap-3 px-5 py-3 ${urgent ? 'bg-red-50/50' : ''}`}>
-                  {/* Child emoji */}
+                <div key={assignment.id} className={`flex items-center gap-3 px-5 py-3 ${urgent ? 'bg-red-50/50' : ''}`}>
                   <span className="text-xl shrink-0">{cfg.emoji}</span>
 
-                  {/* Type icon + title */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-black text-gray-800">{icon} {a.title}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-black text-slate-800">
+                        {icon} {assignment.title}
+                      </span>
                       {urgent && (
                         <span className={`rounded-full px-2 py-0.5 text-xs font-black text-white ${isToday ? 'bg-red-500 animate-pulse' : 'bg-orange-400'}`}>
                           {isToday ? 'TODAY!' : 'Tomorrow'}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs font-bold text-gray-400">{child?.name.split(' ')[0]}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${getSubjectColor(a.subject)}`}>
-                        {a.subject}
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500">{child?.name.split(' ')[0]}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${getSubjectColor(assignment.subject)}`}>
+                        {assignment.subject}
                       </span>
                     </div>
                   </div>
 
-                  {/* Date */}
-                  <span className={`shrink-0 text-xs font-black rounded-full px-2.5 py-1 ${
-                    urgent ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {formatRelativeDate(a.due_date)}
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${urgent ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}`}>
+                    {formatRelativeDate(assignment.due_date)}
                   </span>
                 </div>
               )
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Add button */}
       <div className="flex justify-center">
         <AddAssignmentDialog childOptions={children} onAdded={loadData} />
       </div>

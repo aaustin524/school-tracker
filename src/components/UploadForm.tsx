@@ -98,7 +98,7 @@ export function UploadForm({ childOptions }: UploadFormProps) {
         document_id: docData.id,
       })
     )
-    router.push(`/upload/review?data=${reviewData}`)
+    router.push(`/import/review?data=${reviewData}`)
   }
 
   return (
