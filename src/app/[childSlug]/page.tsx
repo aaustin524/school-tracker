@@ -37,22 +37,25 @@ const TYPE_META = {
   study: { badge: 'STUDY', badgeClass: 'bg-purple-50 text-purple-700 border border-purple-100' },
 } as const
 
-function formatCompactTitle(title: string) {
+function normalizeCompactText(title: string) {
   return title
     .replace(/\bcompare\s+and\s+contrast\b/gi, 'Compare/Contrast')
     .replace(/\bvocabulary\s+and\s+word\s+analysis\b/gi, 'Word Analysis')
-    .replace(/\bpart\b/gi, 'Pt')
-    .replace(/\bchapter\b/gi, 'Ch')
-    .replace(/\blesson\b/gi, 'Lsn')
-    .replace(/\bsection\b/gi, 'Sec')
+    .replace(/\bvocabulary\b/gi, 'Vocab')
+    .replace(/\bpractice\s+subtracting\s+fractions(?:\s+and\s+estimating.*)?/gi, 'Subtracting Fractions')
+    .replace(/\breconstruction\s+of\s+virginia\b/gi, 'Reconstruction')
+    .replace(/\bwriting\s+assignment\b/gi, 'Writing')
+    .replace(/\bassessment\b/gi, 'Assessment')
     .replace(/\bworksheet\b/gi, 'WS')
-    .replace(/\bpractice\s+problems\b/gi, 'Practice')
     .replace(/\bread\s+and\s+answer\b/gi, 'Read/Answer')
     .replace(/\bquestions?\s+and\s+answers?\b/gi, 'Q&A')
     .replace(/\bcomplete\s+the\b/gi, '')
     .replace(/\bfinish\s+the\b/gi, '')
     .replace(/\bwork\s+on\b/gi, '')
-    .replace(/\s*-\s*part\s+(\d+)/gi, ' (Pt $1)')
+    .replace(/\bpart\b/gi, 'Pt')
+    .replace(/\bchapter\b/gi, 'Ch')
+    .replace(/\blesson\b/gi, 'Lsn')
+    .replace(/\bsection\b/gi, 'Sec')
     .replace(/\s*-\s*pt\s+(\d+)/gi, ' (Pt $1)')
     .replace(/\s*-\s*part\s+(\d+)/gi, ' (Pt $1)')
     .replace(/\s*-\s*chapter\s+(\d+)/gi, ' (Ch $1)')
@@ -62,7 +65,6 @@ function formatCompactTitle(title: string) {
     .replace(/\bch\s+(\d+)\b/gi, 'Ch $1')
     .replace(/\blsn\s+(\d+)\b/gi, 'Lsn $1')
     .replace(/\bsec\s+(\d+)\b/gi, 'Sec $1')
-    .replace(/\s{2,}/g, ' ')
     .replace(/\s+([:;,])/g, '$1')
     .replace(/\(\s+/g, '(')
     .replace(/\s+\)/g, ')')
@@ -70,14 +72,41 @@ function formatCompactTitle(title: string) {
     .trim()
 }
 
+function getCompactDisplayTitle(title: string, itemType?: string) {
+  const normalized = normalizeCompactText(title)
+  const lower = normalized.toLowerCase()
+
+  if (lower.includes('reconstruction')) {
+    return itemType === 'test' || lower.includes('test') ? 'Reconstruction Test' : 'Reconstruction'
+  }
+  if (lower.includes('word analysis')) {
+    return normalized.includes('Assessment') ? 'Word Analysis Assessment' : 'Word Analysis'
+  }
+  if (lower.includes('subtracting fractions')) {
+    return 'Subtracting Fractions'
+  }
+  if (lower.includes('compare/contrast')) {
+    return lower.includes('writing') ? 'Compare/Contrast Writing' : 'Compare/Contrast'
+  }
+
+  return normalized
+}
+
 function buildGroupPreview(items: Assignment[], type: string) {
   if (items.length === 0) return ''
-  if (items.length === 1) return formatCompactTitle(items[0].title)
+  if (items.length === 1) return getCompactDisplayTitle(items[0].title, type)
 
-  const compactTitles = items.map((item) => formatCompactTitle(item.title))
+  const compactTitles = items.map((item) =>
+    getCompactDisplayTitle(item.title, item.is_study_task ? 'study' : item.type)
+  )
   const baseNames = compactTitles.map((title) =>
     title
       .replace(/\(([^)]+)\)/g, '')
+      .replace(/\btest\b/gi, '')
+      .replace(/\bquiz\b/gi, '')
+      .replace(/\bassignment\b/gi, '')
+      .replace(/\bassessment\b/gi, '')
+      .replace(/\bwriting\b/gi, '')
       .replace(/\s{2,}/g, ' ')
       .trim()
   )
@@ -186,8 +215,9 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
     : ''
   const itemType = assignment.is_study_task ? 'study' : assignment.type
   const meta = TYPE_META[itemType]
-  const compactTitle = formatCompactTitle(assignment.title)
+  const compactTitle = getCompactDisplayTitle(assignment.title, itemType)
   const relativeLabel = getRelativeLabel(assignment)
+  const visibleTitle = open ? assignment.title : compactTitle
 
   return (
     <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${assignment.completed ? 'opacity-55' : ''}`}>
@@ -224,7 +254,7 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
               }}
               title={assignment.title}
             >
-              {compactTitle}
+              {visibleTitle}
             </p>
             <div className="mt-2 flex min-w-0 items-center gap-1.5 overflow-hidden text-xs font-medium text-slate-500">
               <span className="truncate">{assignment.subject}</span>
