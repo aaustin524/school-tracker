@@ -14,6 +14,7 @@ import { EditAssignmentDialog } from '@/components/EditAssignmentDialog'
 import { ChildPageSkeleton } from '@/components/Skeleton'
 import { StudyMaterials } from '@/components/StudyMaterials'
 import { WeeklyBucket } from '@/components/WeeklyBucket'
+import { getEarnedBadgeIds } from '@/lib/badges'
 import type { StudyMaterial } from '@/types'
 
 interface ChildPageProps {
@@ -508,6 +509,7 @@ export default function ChildPage({ params }: ChildPageProps) {
 
   const activeCount = assignments.filter((a) => !a.completed).length
   const doneCount = assignments.filter((a) => a.completed).length
+  const earnedBadgeCount = getEarnedBadgeIds(assignments).size
   const streak = calculateStreak(assignments)
 
   // Progress bar: this week only
@@ -781,7 +783,7 @@ export default function ChildPage({ params }: ChildPageProps) {
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection title="Badges" icon={<Trophy className="h-4 w-4" />} badge={`${doneCount} done`}>
+      <CollapsibleSection title="Badges" icon={<Trophy className="h-4 w-4" />} badge={`${earnedBadgeCount} done`}>
         <BadgeDisplay
           assignments={assignments}
           accent={child.theme === 'coral' ? '#f97316' : '#a855f8'}
