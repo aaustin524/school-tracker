@@ -79,6 +79,24 @@ function buildGroupPreview(items: Assignment[], type: string) {
   return `${compactTitles[0]} + ${items.length - 1} more`
 }
 
+function getRelativeLabel(assignment: Assignment) {
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const tomorrowStr = format(addDays(new Date(), 1), 'yyyy-MM-dd')
+
+  if (assignment.completed) return null
+  if (assignment.due_date < todayStr) return 'Overdue'
+  if (assignment.due_date === todayStr) return 'Today'
+  if (assignment.due_date === tomorrowStr) return 'Tomorrow'
+  return null
+}
+
+function getRelativeLabelClass(label: string | null) {
+  if (label === 'Today') return 'text-indigo-600'
+  if (label === 'Tomorrow') return 'text-orange-500'
+  if (label === 'Overdue') return 'text-red-600'
+  return 'text-slate-500'
+}
+
 // ── Assignment type card ────────────────────────────────────────────
 function CollapsibleSection({
   title,
@@ -145,21 +163,10 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
     : assignment.score >= 70 ? 'bg-yellow-100 text-yellow-700'
     : 'bg-red-100 text-red-700'
     : ''
-  const todayStr = format(new Date(), 'yyyy-MM-dd')
-  const tomorrowStr = format(addDays(new Date(), 1), 'yyyy-MM-dd')
-  const isOverdue = !assignment.completed && assignment.due_date < todayStr
-  const isDueToday = assignment.due_date === todayStr
-  const isDueTomorrow = assignment.due_date === tomorrowStr
   const itemType = assignment.is_study_task ? 'study' : assignment.type
   const meta = TYPE_META[itemType]
   const compactTitle = formatCompactTitle(assignment.title)
-  const relativeLabel = !assignment.completed
-    ? isDueToday
-      ? 'Today'
-      : isDueTomorrow
-        ? 'Tomorrow'
-        : null
-    : null
+  const relativeLabel = getRelativeLabel(assignment)
 
   return (
     <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${assignment.completed ? 'opacity-55' : ''}`}>
@@ -176,44 +183,38 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
             {assignment.completed && '✓'}
           </button>
           <div className="min-w-0 flex-1 self-stretch">
-            <div className="flex min-w-0 items-start gap-2">
+            <div className="flex items-start justify-between gap-2">
               <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${meta.badgeClass}`}>
                 {meta.badge}
               </span>
-              <p
-                className={`min-w-0 flex-1 text-[13px] font-bold leading-5 text-slate-800 ${assignment.completed ? 'line-through text-slate-400' : ''}`}
-                style={{
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                  wordBreak: 'normal',
-                  overflowWrap: 'break-word',
-                }}
-                title={assignment.title}
-              >
-                {compactTitle}
-              </p>
+              <button onClick={() => setOpen((o) => !o)} className="mt-0.5 shrink-0 text-slate-400 hover:text-slate-600 transition-colors">
+                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+              </button>
             </div>
-            <div className="mt-2 flex min-w-0 items-center gap-1.5 overflow-hidden pl-[0.125rem] text-xs font-medium text-slate-500">
+            <p
+              className={`mt-2 text-[13px] font-bold leading-5 text-slate-800 ${assignment.completed ? 'line-through text-slate-400' : ''}`}
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                wordBreak: 'normal',
+                overflowWrap: 'break-word',
+              }}
+              title={assignment.title}
+            >
+              {compactTitle}
+            </p>
+            <div className="mt-2 flex min-w-0 items-center gap-1.5 overflow-hidden text-xs font-medium text-slate-500">
               <span className="truncate">{assignment.subject}</span>
               {relativeLabel && (
                 <>
                   <span className="text-slate-300">•</span>
-                  <span className={`font-semibold ${isDueToday ? 'text-indigo-600' : 'text-orange-500'}`}>{relativeLabel}</span>
-                </>
-              )}
-              {!relativeLabel && !assignment.completed && isOverdue && (
-                <>
-                  <span className="text-slate-300">•</span>
-                  <span className="font-semibold text-red-600">Overdue</span>
+                  <span className={`font-semibold ${getRelativeLabelClass(relativeLabel)}`}>{relativeLabel}</span>
                 </>
               )}
             </div>
           </div>
-          <button onClick={() => setOpen((o) => !o)} className="mt-0.5 shrink-0 text-slate-400 hover:text-slate-600 transition-colors">
-            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-          </button>
         </div>
       </div>
 
@@ -276,6 +277,13 @@ function AssignmentGroup({
   const itemType = sample.is_study_task ? 'study' : sample.type
   const meta = TYPE_META[itemType]
   const previewText = buildGroupPreview(items, itemType)
+  const relativeLabel = items.some((item) => getRelativeLabel(item) === 'Overdue')
+    ? 'Overdue'
+    : items.some((item) => getRelativeLabel(item) === 'Today')
+      ? 'Today'
+      : items.some((item) => getRelativeLabel(item) === 'Tomorrow')
+        ? 'Tomorrow'
+        : null
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -284,11 +292,14 @@ function AssignmentGroup({
         className="flex min-h-[104px] min-w-0 w-full items-start justify-between px-3.5 py-3 text-left"
       >
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start gap-2">
+          <div className="flex min-w-0 items-start justify-between gap-2">
+            <div className="flex min-w-0 items-start gap-2">
             <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${meta.badgeClass}`}>
               {meta.badge}
             </span>
-            <span className="min-w-0 flex-1 text-[13px] font-black leading-5 text-slate-800">{label}</span>
+              <span className="min-w-0 flex-1 text-[13px] font-black leading-5 text-slate-800">{label}</span>
+            </div>
+            <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
           </div>
           <p
             className="mt-2 text-xs font-medium text-slate-500"
@@ -304,8 +315,16 @@ function AssignmentGroup({
           >
             {previewText}
           </p>
+          <div className="mt-2 flex min-w-0 items-center gap-1.5 overflow-hidden text-xs font-medium text-slate-500">
+            <span className="truncate">{sample.subject}</span>
+            {relativeLabel && (
+              <>
+                <span className="text-slate-300">•</span>
+                <span className={`font-semibold ${getRelativeLabelClass(relativeLabel)}`}>{relativeLabel}</span>
+              </>
+            )}
+          </div>
         </div>
-        <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       <div className={`grid transition-all duration-200 ease-in-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
