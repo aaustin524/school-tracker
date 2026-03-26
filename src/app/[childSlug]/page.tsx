@@ -9,7 +9,7 @@ import { getSupabase } from '@/lib/supabase'
 import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
 import { nameToSlug, getWeekRange, getSubjectColor, calculateStreak } from '@/lib/helpers'
 import { BadgeDisplay } from '@/components/BadgeDisplay'
-import { Trash2, ChevronDown, ChevronLeft, ChevronRight, Printer, Pencil, Check, X } from 'lucide-react'
+import { Trash2, ChevronDown, ChevronLeft, ChevronRight, Printer, Pencil, Check, X, Sparkles, BookOpen, Trophy, NotebookPen, CheckCircle2 } from 'lucide-react'
 import { EditAssignmentDialog } from '@/components/EditAssignmentDialog'
 import { ChildPageSkeleton } from '@/components/Skeleton'
 import { StudyMaterials } from '@/components/StudyMaterials'
@@ -28,13 +28,51 @@ const CHILD_CONFIG: Record<string, { emoji: string; gradient: string }> = {
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 // ── Assignment type card ────────────────────────────────────────────
-function TestCard({ assignment, onToggle, onDelete, onEdit }: {
+function CollapsibleSection({
+  title,
+  icon,
+  defaultOpen = false,
+  badge,
+  children,
+}: {
+  title: string
+  icon: React.ReactNode
+  defaultOpen?: boolean
+  badge?: string
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <div className="rounded-3xl bg-white/70 border-2 border-white shadow-lg overflow-hidden">
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center gap-3 px-5 py-4 text-left"
+      >
+        <div className="rounded-2xl bg-indigo-50 p-2 text-indigo-500">{icon}</div>
+        <div className="flex-1">
+          <p className="text-sm font-black uppercase tracking-wider text-indigo-600">{title}</p>
+        </div>
+        {badge && (
+          <span className="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-black text-indigo-600">
+            {badge}
+          </span>
+        )}
+        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="border-t border-gray-100 px-5 py-4">{children}</div>}
+    </div>
+  )
+}
+
+function TestCard({ assignment, onToggle, onDelete, onEdit, compact = false }: {
   assignment: Assignment
   onToggle: (id: string, completed: boolean) => void
   onDelete: (id: string) => void
   onEdit: (updated: Assignment) => void
+  compact?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!compact)
   const [scoreInput, setScoreInput] = useState(assignment.score?.toString() ?? '')
 
   async function handleScoreSave() {
@@ -114,7 +152,11 @@ function TestCard({ assignment, onToggle, onDelete, onEdit }: {
         </div>
         {/* Row 2: title — full width, wraps freely */}
         <p className={`mt-1.5 ml-6 pr-1 text-sm font-bold text-gray-800 leading-snug ${assignment.completed ? 'line-through' : ''}`}>
-          {assignment.title}
+          {compact && !open ? (
+            <span className="block truncate">{assignment.title}</span>
+          ) : (
+            assignment.title
+          )}
         </p>
       </div>
       {/* Details — smooth height animation via CSS grid trick */}
@@ -162,13 +204,14 @@ function TestCard({ assignment, onToggle, onDelete, onEdit }: {
   )
 }
 
-function StudyCard({ assignment, onToggle, onDelete, onEdit }: {
+function StudyCard({ assignment, onToggle, onDelete, onEdit, compact = false }: {
   assignment: Assignment
   onToggle: (id: string, completed: boolean) => void
   onDelete: (id: string) => void
   onEdit: (updated: Assignment) => void
+  compact?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(!compact)
 
   return (
     <div className={`rounded-xl border-2 border-purple-200 bg-white overflow-hidden ${assignment.completed ? 'opacity-50' : ''}`}>
@@ -194,7 +237,11 @@ function StudyCard({ assignment, onToggle, onDelete, onEdit }: {
         </div>
         {/* Row 2: title — full width, wraps freely */}
         <p className={`mt-1.5 ml-6 pr-1 text-sm font-bold text-gray-800 leading-snug ${assignment.completed ? 'line-through' : ''}`}>
-          {assignment.title}
+          {compact && !open ? (
+            <span className="block truncate">{assignment.title}</span>
+          ) : (
+            assignment.title
+          )}
         </p>
       </div>
       {/* Details — smooth height animation */}
@@ -232,6 +279,7 @@ export default function ChildPage({ params }: ChildPageProps) {
   const [weekOffset, setWeekOffset] = useState(0)
   const [editingNotes, setEditingNotes] = useState(false)
   const [notesText, setNotesText] = useState('')
+  const [expandedStudyGroups, setExpandedStudyGroups] = useState<Record<string, boolean>>({})
   const pendingDeletes = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   const loadData = useCallback(async () => {
@@ -352,40 +400,65 @@ export default function ChildPage({ params }: ChildPageProps) {
     ? assignments.filter((a) => !a.completed && a.due_date < mondayStr)
     : []
 
+  const todayItems = assignments.filter((a) => !a.completed && a.due_date === todayStr)
+  const urgentUpcoming = assignments
+    .filter((a) => !a.completed && a.due_date > todayStr && a.due_date <= format(addDays(new Date(), 2), 'yyyy-MM-dd'))
+    .sort((a, b) => a.due_date.localeCompare(b.due_date))
+  const todaysFocus = [...todayItems, ...urgentUpcoming].slice(0, 3)
+
+  function toggleStudyGroup(dateStr: string) {
+    setExpandedStudyGroups((prev) => ({ ...prev, [dateStr]: !prev[dateStr] }))
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className={`rounded-3xl bg-gradient-to-r ${cfg.gradient} p-6 text-white shadow-lg`}>
-        <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-4">
-            <span className="text-6xl">{cfg.emoji}</span>
-            <div>
+            <span className="text-6xl shrink-0">{cfg.emoji}</span>
+            <div className="min-w-0">
               <h1 className="text-3xl font-black">{child.name}</h1>
               <p className="font-bold text-white/80">{child.grade}</p>
+              <p className="mt-1 text-sm font-medium text-white/75">
+                Focus on what needs to get done this week.
+              </p>
             </div>
           </div>
-          <div className="flex gap-3 items-center">
-            {streak > 0 && (
+          <div className="flex flex-1 flex-col gap-4 xl:items-end">
+            <div className="flex flex-wrap items-center gap-3">
+              {streak > 0 && (
+                <div className="bg-white/20 rounded-2xl px-4 py-2 text-center">
+                  <div className="text-2xl font-black">🔥 {streak}</div>
+                  <div className="text-xs font-bold text-white/80">day streak</div>
+                </div>
+              )}
               <div className="bg-white/20 rounded-2xl px-4 py-2 text-center">
-                <div className="text-2xl font-black">🔥 {streak}</div>
-                <div className="text-xs font-bold text-white/80">day streak</div>
+                <div className="text-2xl font-black">{activeCount}</div>
+                <div className="text-xs font-bold text-white/80">to do</div>
+              </div>
+              <div className="bg-white/20 rounded-2xl px-4 py-2 text-center">
+                <div className="text-2xl font-black">{doneCount}</div>
+                <div className="text-xs font-bold text-white/80">done ✓</div>
+              </div>
+              <button
+                onClick={() => window.print()}
+                className="no-print bg-white/20 hover:bg-white/30 rounded-2xl p-2.5 transition-colors"
+                title="Print weekly summary"
+              >
+                <Printer className="h-5 w-5 text-white" />
+              </button>
+            </div>
+            {weekTotal > 0 && (
+              <div className="w-full max-w-md rounded-3xl bg-white/15 p-3 backdrop-blur-sm">
+                <WeeklyBucket
+                  pct={weekPct}
+                  done={weekDone}
+                  total={weekTotal}
+                  theme={child.theme}
+                />
               </div>
             )}
-            <div className="bg-white/20 rounded-2xl px-4 py-2 text-center">
-              <div className="text-2xl font-black">{activeCount}</div>
-              <div className="text-xs font-bold text-white/80">to do</div>
-            </div>
-            <div className="bg-white/20 rounded-2xl px-4 py-2 text-center">
-              <div className="text-2xl font-black">{doneCount}</div>
-              <div className="text-xs font-bold text-white/80">done ✓</div>
-            </div>
-            <button
-              onClick={() => window.print()}
-              className="no-print bg-white/20 hover:bg-white/30 rounded-2xl p-2.5 transition-colors"
-              title="Print weekly summary"
-            >
-              <Printer className="h-5 w-5 text-white" />
-            </button>
           </div>
         </div>
         {/* Weekly progress bar */}
@@ -405,104 +478,24 @@ export default function ChildPage({ params }: ChildPageProps) {
         )}
       </div>
 
-      {/* Weekly Bucket */}
-      {weekTotal > 0 && (
-        <WeeklyBucket
-          pct={weekPct}
-          done={weekDone}
-          total={weekTotal}
-          theme={child.theme}
-        />
-      )}
-
-      {/* Teacher Notes */}
-      <div className="no-print rounded-2xl bg-white/70 border-2 border-white shadow-sm px-5 py-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-black uppercase tracking-wider text-gray-400">📋 Teacher Notes</p>
-          {!editingNotes && (
-            <button
-              onClick={() => { setNotesText(child.notes ?? ''); setEditingNotes(true) }}
-              className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-600 font-semibold transition-colors"
-            >
-              <Pencil className="h-3 w-3" /> Edit
-            </button>
-          )}
-        </div>
-        {editingNotes ? (
-          <div className="space-y-2">
-            <textarea
-              value={notesText}
-              onChange={(e) => setNotesText(e.target.value)}
-              rows={3}
-              placeholder="Teacher name, email, classroom links, important dates..."
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              autoFocus
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={handleSaveNotes}
-                className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
-              >
-                <Check className="h-3 w-3" /> Save
-              </button>
-              <button
-                onClick={() => setEditingNotes(false)}
-                className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                <X className="h-3 w-3" /> Cancel
-              </button>
-            </div>
+      <div className="rounded-3xl bg-white/75 border-2 border-white shadow-lg p-5">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wider text-indigo-400">
+              🎯 Today&apos;s Focus
+            </p>
+            <h2 className="mt-1 text-xl font-black text-gray-800">Start here</h2>
           </div>
-        ) : (
-          <p className="text-sm text-gray-600 whitespace-pre-wrap">
-            {child.notes || <span className="text-gray-400 italic">No notes yet — click Edit to add teacher contact info, links, or reminders.</span>}
-          </p>
-        )}
-      </div>
-
-      {/* Badges */}
-      <BadgeDisplay
-        assignments={assignments}
-        accent={child.theme === 'coral' ? '#f97316' : '#a855f8'}
-      />
-
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3 text-xs font-black">
-        <span className="flex items-center gap-1 bg-red-100 text-red-700 rounded-full px-3 py-1">📋 Test / Quiz</span>
-        <span className="flex items-center gap-1 bg-purple-100 text-purple-700 rounded-full px-3 py-1">🔬 Project</span>
-        <span className="flex items-center gap-1 bg-blue-100 text-blue-700 rounded-full px-3 py-1">📝 Homework</span>
-        <span className="flex items-center gap-1 bg-purple-50 border border-purple-200 text-purple-600 rounded-full px-3 py-1">🧠 Study Task</span>
-        <div className="ml-auto">
-          <AddAssignmentDialog childOptions={children} onAdded={loadData} />
-        </div>
-      </div>
-
-      {/* Overdue */}
-      {overdue.length > 0 && (
-        <div className="rounded-2xl bg-red-50 border-2 border-red-300 p-4">
-          <h2 className="text-sm font-black uppercase tracking-wider text-red-500 mb-3">⚠️ Overdue</h2>
-          <div className="space-y-2">
-            {overdue.map((a) => a.is_study_task
-              ? <StudyCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
-              : <TestCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Weekly grid */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-black uppercase tracking-wider text-indigo-400">
-            📅 {weekLabel} · {format(start, 'MMMM d')}
-          </h2>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setWeekOffset((o) => o - 1)}
               className="flex h-8 w-8 items-center justify-center rounded-full bg-white border-2 border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition-colors shadow-sm"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
+            <div className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-black text-indigo-600">
+              {weekLabel}
+            </div>
             {weekOffset !== 0 && (
               <button
                 onClick={() => setWeekOffset(0)}
@@ -519,17 +512,76 @@ export default function ChildPage({ params }: ChildPageProps) {
             </button>
           </div>
         </div>
+
+        {todaysFocus.length === 0 ? (
+          <div className="rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/80 p-4 text-center">
+            <p className="text-sm font-black text-emerald-700">Nothing urgent today.</p>
+            <p className="mt-1 text-xs font-medium text-emerald-600">This week is looking manageable.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-3">
+            {todaysFocus.map((item) => (
+              <div key={item.id} className="rounded-2xl bg-gradient-to-br from-white to-indigo-50 border border-indigo-100 p-4 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className={`rounded-2xl p-2 ${item.is_study_task ? 'bg-purple-100 text-purple-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                    {item.is_study_task ? <Sparkles className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-gray-800 leading-snug">{item.title}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${getSubjectColor(item.subject)}`}>{item.subject}</span>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-black text-gray-500">
+                        {item.due_date === todayStr ? 'Today' : format(new Date(item.due_date), 'EEE')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Weekly grid */}
+      <div className="rounded-3xl bg-white/75 border-2 border-white shadow-lg p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-black uppercase tracking-wider text-indigo-400">
+            📅 This Week · {format(start, 'MMMM d')}
+          </h2>
+          <div className="flex items-center gap-3 text-xs font-black">
+            <span className="flex items-center gap-1 bg-red-100 text-red-700 rounded-full px-3 py-1">📋 Test / Quiz</span>
+            <span className="flex items-center gap-1 bg-purple-100 text-purple-700 rounded-full px-3 py-1">🔬 Project</span>
+            <span className="flex items-center gap-1 bg-blue-100 text-blue-700 rounded-full px-3 py-1">📝 Homework</span>
+            <span className="flex items-center gap-1 bg-purple-50 border border-purple-200 text-purple-600 rounded-full px-3 py-1">🧠 Study Task</span>
+            <div className="ml-auto">
+              <AddAssignmentDialog childOptions={children} onAdded={loadData} />
+            </div>
+          </div>
+        </div>
+
+        {overdue.length > 0 && (
+        <div className="rounded-2xl bg-red-50 border-2 border-red-300 p-4 mb-4">
+          <h2 className="text-sm font-black uppercase tracking-wider text-red-500 mb-3">⚠️ Overdue</h2>
+          <div className="space-y-2">
+            {overdue.map((a) => a.is_study_task
+              ? <StudyCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+              : <TestCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+            )}
+          </div>
+        </div>
+      )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
           {dayColumns.map(({ day, date, dateStr, tests, study }) => {
             const isToday = dateStr === todayStr
+            const studiesExpanded = expandedStudyGroups[dateStr]
             return (
-              <div key={day} className={`rounded-2xl p-2 ${isToday ? 'bg-indigo-50 border-2 border-indigo-300' : 'bg-white/60 border-2 border-transparent'}`}>
+              <div key={day} className={`rounded-2xl p-3 shadow-sm ${isToday ? 'bg-indigo-50 border-2 border-indigo-400 scale-[1.01]' : 'bg-white/70 border border-white'}`}>
                 {/* Day header */}
-                <div className={`mb-3 rounded-xl py-2 px-3 text-center ${isToday ? 'bg-indigo-600 text-white' : 'bg-gray-100'}`}>
+                <div className={`mb-3 rounded-xl py-3 px-3 text-center ${isToday ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100'}`}>
                   <div className={`text-xs font-black uppercase tracking-wide ${isToday ? 'text-indigo-200' : 'text-gray-400'}`}>
                     {day.slice(0, 3)}
                   </div>
-                  <div className={`text-2xl font-black ${isToday ? 'text-white' : 'text-gray-700'}`}>
+                  <div className={`font-black ${isToday ? 'text-white text-3xl' : 'text-gray-700 text-2xl'}`}>
                     {format(date, 'd')}
                   </div>
                   {isToday && <div className="text-xs font-black text-indigo-200">Today</div>}
@@ -539,7 +591,7 @@ export default function ChildPage({ params }: ChildPageProps) {
                 {tests.length > 0 && (
                   <div className="space-y-2 mb-2">
                     {tests.map((a) => (
-                      <TestCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+                      <TestCard key={a.id} assignment={a} compact onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
                     ))}
                   </div>
                 )}
@@ -556,9 +608,31 @@ export default function ChildPage({ params }: ChildPageProps) {
                 {/* Study tasks */}
                 {study.length > 0 && (
                   <div className="space-y-2">
-                    {study.map((a) => (
-                      <StudyCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
-                    ))}
+                    {study.length > 1 ? (
+                      <div className="rounded-2xl border border-purple-200 bg-purple-50/80 p-3">
+                        <button
+                          onClick={() => toggleStudyGroup(dateStr)}
+                          className="flex w-full items-center justify-between text-left"
+                        >
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-wider text-purple-500">Study Tasks</p>
+                            <p className="text-sm font-black text-purple-700">{study.length} Study Tasks</p>
+                          </div>
+                          <ChevronDown className={`h-4 w-4 text-purple-400 transition-transform ${studiesExpanded ? 'rotate-180' : ''}`} />
+                        </button>
+                        {studiesExpanded && (
+                          <div className="mt-3 space-y-2">
+                            {study.map((a) => (
+                              <StudyCard key={a.id} assignment={a} compact onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      study.map((a) => (
+                        <StudyCard key={a.id} assignment={a} compact onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+                      ))
+                    )}
                   </div>
                 )}
 
@@ -573,30 +647,80 @@ export default function ChildPage({ params }: ChildPageProps) {
         </div>
       </div>
 
-      {/* Study Materials */}
-      <StudyMaterials
-        childId={child.id}
-        materials={materials}
-        onRefresh={async () => {
-          const res = await fetch(`/api/study-materials?child_id=${child.id}`)
-          setMaterials(await res.json())
-        }}
-      />
+      <CollapsibleSection title="Teacher Notes" icon={<NotebookPen className="h-4 w-4" />}>
+        <div className="no-print">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-black uppercase tracking-wider text-gray-400">📋 Teacher Notes</p>
+            {!editingNotes && (
+              <button
+                onClick={() => { setNotesText(child.notes ?? ''); setEditingNotes(true) }}
+                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-600 font-semibold transition-colors"
+              >
+                <Pencil className="h-3 w-3" /> Edit
+              </button>
+            )}
+          </div>
+          {editingNotes ? (
+            <div className="space-y-2">
+              <textarea
+                value={notesText}
+                onChange={(e) => setNotesText(e.target.value)}
+                rows={3}
+                placeholder="Teacher name, email, classroom links, important dates..."
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveNotes}
+                  className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+                >
+                  <Check className="h-3 w-3" /> Save
+                </button>
+                <button
+                  onClick={() => setEditingNotes(false)}
+                  className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  <X className="h-3 w-3" /> Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600 whitespace-pre-wrap">
+              {child.notes || <span className="text-gray-400 italic">No notes yet — click Edit to add teacher contact info, links, or reminders.</span>}
+            </p>
+          )}
+        </div>
+      </CollapsibleSection>
 
-      {/* Completed */}
+      <CollapsibleSection title="Badges" icon={<Trophy className="h-4 w-4" />} badge={`${doneCount} done`}>
+        <BadgeDisplay
+          assignments={assignments}
+          accent={child.theme === 'coral' ? '#f97316' : '#a855f8'}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Study Materials" icon={<BookOpen className="h-4 w-4" />} badge={materials.length > 0 ? `${materials.length}` : undefined}>
+        <StudyMaterials
+          childId={child.id}
+          materials={materials}
+          onRefresh={async () => {
+            const res = await fetch(`/api/study-materials?child_id=${child.id}`)
+            setMaterials(await res.json())
+          }}
+        />
+      </CollapsibleSection>
+
       {doneCount > 0 && (
-        <details className="rounded-2xl bg-white/50 border border-green-200 p-4">
-          <summary className="cursor-pointer text-sm font-black text-green-600 select-none">
-            ✅ Completed ({doneCount})
-          </summary>
-          <div className="mt-3 space-y-2">
+        <CollapsibleSection title="Completed Items" icon={<CheckCircle2 className="h-4 w-4" />} badge={`${doneCount}`}>
+          <div className="space-y-2">
             {assignments.filter((a) => a.completed).map((a) =>
               a.is_study_task
                 ? <StudyCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
                 : <TestCard  key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
             )}
           </div>
-        </details>
+        </CollapsibleSection>
       )}
     </div>
   )

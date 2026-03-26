@@ -194,6 +194,7 @@ export function StudyMaterials({ childId, materials, onRefresh }: {
 }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   async function handleDelete(id: string) {
     setDeletingId(id)
@@ -245,50 +246,63 @@ export function StudyMaterials({ childId, materials, onRefresh }: {
       ) : (
         <div className="divide-y divide-gray-50">
           {materials.map((m) => (
-            <div key={m.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50/60 transition-colors group">
+            <div key={m.id} className="px-5 py-3 hover:bg-gray-50/60 transition-colors group">
+              <div className="flex items-center gap-3">
               {/* File type icon */}
-              <div className="shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
-                {fileIcon(m.file_type)}
-              </div>
+                <div className="shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100">
+                  {fileIcon(m.file_type)}
+                </div>
 
               {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-black text-gray-800 leading-snug">{m.title}</span>
-                  {fileTypeBadge(m.file_type)}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-black text-gray-800 leading-snug">{m.title}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold', getSubjectColor(m.subject))}>
+                      {m.subject}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold', getSubjectColor(m.subject))}>
-                    {m.subject}
-                  </span>
-                  {m.file_size && (
-                    <span className="text-xs text-gray-400">{formatSize(m.file_size)}</span>
-                  )}
-                  <span className="text-xs text-gray-300 truncate hidden sm:block">{m.filename}</span>
+
+              {/* Actions */}
+                <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => setExpandedId((current) => current === m.id ? null : m.id)}
+                    className="rounded-full border border-gray-200 px-3 py-1 text-xs font-black text-gray-500 hover:bg-gray-100 transition-colors"
+                  >
+                    {expandedId === m.id ? 'Less' : 'Details'}
+                  </button>
+                  <button
+                    onClick={() => handleDownload(m)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors"
+                    title="Download"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(m.id)}
+                    disabled={deletingId === m.id}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-400 hover:bg-red-200 transition-colors disabled:opacity-50"
+                    title="Delete"
+                  >
+                    {deletingId === m.id
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Trash2 className="h-3.5 w-3.5" />
+                    }
+                  </button>
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => handleDownload(m)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors"
-                  title="Download"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => handleDelete(m.id)}
-                  disabled={deletingId === m.id}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-400 hover:bg-red-200 transition-colors disabled:opacity-50"
-                  title="Delete"
-                >
-                  {deletingId === m.id
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <Trash2 className="h-3.5 w-3.5" />
-                  }
-                </button>
-              </div>
+              {expandedId === m.id && (
+                <div className="mt-3 rounded-2xl bg-gray-50 px-4 py-3 text-xs text-gray-500">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {fileTypeBadge(m.file_type)}
+                    {m.file_size && <span>{formatSize(m.file_size)}</span>}
+                    <span className="truncate">{m.filename}</span>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
