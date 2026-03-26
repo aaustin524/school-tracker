@@ -294,17 +294,6 @@ export default function DashboardPage() {
     [twoWeeksStr, upcoming]
   )
 
-  const overdueByChild = useMemo(
-    () =>
-      selectedChildren
-        .map((child) => ({
-          child,
-          items: overdue.filter((a) => a.child_id === child.id),
-        }))
-        .filter((entry) => entry.items.length > 0),
-    [overdue, selectedChildren]
-  )
-
   const weekStats = useMemo(() => {
     const stats = new Map<string, { weekTotal: number; weekDone: number; weekPct: number }>()
 
@@ -556,40 +545,6 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-
-      {overdueByChild.length > 0 && (
-        <div className="rounded-3xl border border-red-100 bg-red-50/80 p-5 shadow-sm">
-          <div className="mb-3 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
-            <p className="text-sm font-black uppercase tracking-[0.22em] text-red-600">Overdue Items</p>
-          </div>
-          <div className="space-y-3">
-            {overdueByChild.map(({ child, items }) => {
-              const cfg = CHILD_CONFIG[child.theme] ?? CHILD_CONFIG.coral
-
-              return (
-                <div key={child.id} className="flex flex-wrap items-center gap-3 rounded-2xl bg-white/80 px-4 py-3">
-                  <span className="text-lg">{cfg.emoji}</span>
-                  <span className="text-sm font-black text-slate-700">{child.name.split(' ')[0]}</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {items.map((assignment) => (
-                      <span key={assignment.id} className="rounded-full border border-red-200 bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700">
-                        {assignment.title} · <span className="font-black">{formatRelativeDate(assignment.due_date)}</span>
-                      </span>
-                    ))}
-                  </div>
-                  <a
-                    href={`/${nameToSlug(child.name)}`}
-                    className="ml-auto text-xs font-black text-red-500 underline underline-offset-2 hover:text-red-700"
-                  >
-                    View →
-                  </a>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         {childCards.map(({ child, dueTodayItems, overdueItems, completedTodayItems, primaryItems, secondaryItems, weekPct, weekTotal }) => {
