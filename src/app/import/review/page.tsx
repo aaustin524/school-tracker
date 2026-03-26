@@ -1,14 +1,14 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, WandSparkles } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { AlertTriangle, CheckCircle2, Loader2, WandSparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Child, ExtractedAssignment } from '@/types'
 import { getSupabase } from '@/lib/supabase'
 import { ImportReviewRow } from '@/components/import-review/ImportReviewRow'
 import { ImportReviewToolbar } from '@/components/import-review/ImportReviewToolbar'
-import type { ImportReviewType, ParsedImportAssignment } from '@/components/import-review/types'
+import { IMPORT_REVIEW_STORAGE_KEY, type ImportReviewType, type ParsedImportAssignment } from '@/components/import-review/types'
 
 const CONFIDENCE_TO_SCORE: Record<ExtractedAssignment['confidence'], number> = {
   high: 0.92,
@@ -38,13 +38,16 @@ function toReviewType(type: ExtractedAssignment['type']): ImportReviewType {
 }
 
 function normalizeParsedItems(payload: ReviewPayload, children: Child[]): ParsedImportAssignment[] {
-  const childName = children.find((child) => child.id === payload.child_id)?.name ?? children[0]?.name ?? ''
+  const defaultChild = children.find((child) => child.id === payload.child_id) ?? children[0]
+  const childName = defaultChild?.name ?? ''
+  const childId = defaultChild?.id ?? ''
   const baseAssignments = payload.assignments ?? []
   const studyTasks = payload.study_tasks ?? []
 
   const normalizedAssignments: ParsedImportAssignment[] = baseAssignments.map((item, index) => ({
     id: `assignment-${index}-${item.title}`,
     title: item.title,
+    child_id: childId,
     child_name: childName,
     subject: item.subject,
     due_date: item.due_date ?? '',
@@ -58,6 +61,7 @@ function normalizeParsedItems(payload: ReviewPayload, children: Child[]): Parsed
   const normalizedStudyTasks: ParsedImportAssignment[] = studyTasks.map((item, index) => ({
     id: `study-${index}-${item.title}`,
     title: item.title,
+    child_id: childId,
     child_name: childName,
     subject: item.subject,
     due_date: item.due_date ?? '',
@@ -78,10 +82,10 @@ function normalizeParsedItems(payload: ReviewPayload, children: Child[]): Parsed
 
 function ImportReviewContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [children, setChildren] = useState<Child[]>([])
   const [items, setItems] = useState<ParsedImportAssignment[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [expandedReadyIds, setExpandedReadyIds] = useState<Set<string>>(new Set())
   const [bulkSubject, setBulkSubject] = useState('')
   const [bulkChild, setBulkChild] = useState('')
   const [loadingChildren, setLoadingChildren] = useState(true)
@@ -89,11 +93,11 @@ function ImportReviewContent() {
   const [dataError, setDataError] = useState('')
 
   useEffect(() => {
-    const rawData = searchParams.get('data')
     let mounted = true
 
     async function loadChildrenAndData() {
       try {
+        const rawData = sessionStorage.getItem(IMPORT_REVIEW_STORAGE_KEY)
         const { data } = await getSupabase()
           .from('children')
           .select('*')
@@ -110,7 +114,7 @@ function ImportReviewContent() {
         }
 
         try {
-          const parsed = JSON.parse(decodeURIComponent(rawData)) as ReviewPayload
+          const parsed = JSON.parse(rawData) as ReviewPayload
           const normalized = normalizeParsedItems(parsed, childData)
           setItems(normalized)
           setSelectedIds(new Set(normalized.map((item) => item.id)))
@@ -129,21 +133,36 @@ function ImportReviewContent() {
     return () => {
       mounted = false
     }
-  }, [searchParams])
+  }, [])
 
   const selectedCount = selectedIds.size
+  const needsReviewItems = useMemo(
+    () => items.filter((item) => item.confidence == null || item.confidence < 0.75),
+    [items]
+  )
+  const readyItems = useMemo(
+    () => items.filter((item) => item.confidence != null && item.confidence >= 0.75),
+    [items]
+  )
+  const readyIds = useMemo(
+    () => readyItems.map((item) => item.id),
+    [readyItems]
+  )
   const allSelected = items.length > 0 && selectedCount === items.length
-
-  const confidenceSummary = useMemo(() => {
-    const low = items.filter((item) => item.confidence != null && item.confidence < 0.45).length
-    const medium = items.filter((item) => item.confidence != null && item.confidence >= 0.45 && item.confidence < 0.75).length
-    return { low, medium }
-  }, [items])
 
   function updateItem<K extends keyof ParsedImportAssignment>(id: string, field: K, value: ParsedImportAssignment[K]) {
     setItems((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item
+
+        if (field === 'child_id') {
+          const child = children.find((entry) => entry.id === value)
+          return {
+            ...item,
+            child_id: value as string,
+            child_name: child?.name ?? '',
+          }
+        }
 
         if (field === 'review_type') {
           const reviewType = value as ImportReviewType
@@ -169,6 +188,15 @@ function ImportReviewContent() {
     })
   }
 
+  function toggleExpanded(id: string) {
+    setExpandedReadyIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   function toggleAll() {
     setSelectedIds(allSelected ? new Set() : new Set(items.map((item) => item.id)))
   }
@@ -178,10 +206,24 @@ function ImportReviewContent() {
     toast.success('All parsed assignments are selected.')
   }
 
+  function approveReady() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      readyIds.forEach((id) => next.add(id))
+      return next
+    })
+    toast.success(`Approved ${readyIds.length} ready item${readyIds.length === 1 ? '' : 's'}.`)
+  }
+
   function deleteSelected() {
     if (selectedIds.size === 0) return
     setItems((prev) => prev.filter((item) => !selectedIds.has(item.id)))
     setSelectedIds(new Set())
+    setExpandedReadyIds((prev) => {
+      const next = new Set(prev)
+      selectedIds.forEach((id) => next.delete(id))
+      return next
+    })
     toast.success('Selected assignments removed from review.')
   }
 
@@ -193,8 +235,13 @@ function ImportReviewContent() {
 
   function applyChildToSelected() {
     if (!bulkChild || selectedIds.size === 0) return
-    setItems((prev) => prev.map((item) => (selectedIds.has(item.id) ? { ...item, child_name: bulkChild } : item)))
-    toast.success(`Applied ${bulkChild} to selected assignments.`)
+    const child = children.find((entry) => entry.id === bulkChild)
+    setItems((prev) => prev.map((item) => (
+      selectedIds.has(item.id)
+        ? { ...item, child_id: bulkChild, child_name: child?.name ?? '' }
+        : item
+    )))
+    toast.success(`Applied ${child?.name ?? 'child'} to selected assignments.`)
   }
 
   async function handleConfirmSave() {
@@ -209,9 +256,22 @@ function ImportReviewContent() {
       return
     }
 
-    const missingChild = selectedItems.find((item) => !children.find((child) => child.name === item.child_name))
-    if (missingChild) {
-      toast.error(`Match a child for "${missingChild.title}" before saving.`)
+    const invalidItem = selectedItems.find((item) => (
+      !item.title.trim() ||
+      !item.child_id ||
+      !item.subject.trim() ||
+      !item.due_date
+    ))
+
+    if (invalidItem) {
+      const missingFields = [
+        !invalidItem.title.trim() ? 'title' : null,
+        !invalidItem.child_id ? 'child' : null,
+        !invalidItem.subject.trim() ? 'subject' : null,
+        !invalidItem.due_date ? 'due date' : null,
+      ].filter(Boolean).join(', ')
+
+      toast.error(`"${invalidItem.title || 'Untitled assignment'}" is missing: ${missingFields}.`)
       return
     }
 
@@ -219,11 +279,10 @@ function ImportReviewContent() {
 
     try {
       const payload = selectedItems.map((item) => {
-        const child = children.find((entry) => entry.name === item.child_name)!
         return {
-          child_id: child.id,
-          title: item.title,
-          subject: item.subject,
+          child_id: item.child_id,
+          title: item.title.trim(),
+          subject: item.subject.trim(),
           due_date: item.due_date,
           type: item.type,
           notes: item.notes ?? '',
@@ -244,6 +303,7 @@ function ImportReviewContent() {
       }
 
       toast.success(`Saved ${payload.length} assignment${payload.length === 1 ? '' : 's'} successfully.`)
+      sessionStorage.removeItem(IMPORT_REVIEW_STORAGE_KEY)
       router.push('/')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save assignments.')
@@ -252,6 +312,7 @@ function ImportReviewContent() {
   }
 
   function handleCancel() {
+    sessionStorage.removeItem(IMPORT_REVIEW_STORAGE_KEY)
     router.push('/')
   }
 
@@ -301,12 +362,12 @@ function ImportReviewContent() {
               <p className="mt-2 text-3xl font-black text-slate-800">{items.length}</p>
             </div>
             <div className="rounded-3xl border border-amber-100 bg-white/85 px-4 py-3 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">Review suggested</p>
-              <p className="mt-2 text-3xl font-black text-slate-800">{confidenceSummary.medium}</p>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-500">Needs review</p>
+              <p className="mt-2 text-3xl font-black text-slate-800">{needsReviewItems.length}</p>
             </div>
-            <div className="rounded-3xl border border-rose-100 bg-white/85 px-4 py-3 shadow-sm">
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-500">Low confidence</p>
-              <p className="mt-2 text-3xl font-black text-slate-800">{confidenceSummary.low}</p>
+            <div className="rounded-3xl border border-emerald-100 bg-white/85 px-4 py-3 shadow-sm">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-500">Ready to save</p>
+              <p className="mt-2 text-3xl font-black text-slate-800">{readyItems.length}</p>
             </div>
           </div>
         </div>
@@ -315,12 +376,14 @@ function ImportReviewContent() {
       <ImportReviewToolbar
         selectedCount={selectedCount}
         allSelected={allSelected}
+        readyCount={readyItems.length}
         childOptions={children}
         bulkSubject={bulkSubject}
         bulkChild={bulkChild}
         saving={saving}
         onToggleAll={toggleAll}
         onApproveAll={approveAll}
+        onApproveReady={approveReady}
         onDeleteSelected={deleteSelected}
         onBulkSubjectChange={setBulkSubject}
         onBulkSubjectApply={applySubjectToSelected}
@@ -340,16 +403,77 @@ function ImportReviewContent() {
             </p>
           </div>
         ) : (
-          items.map((item) => (
-            <ImportReviewRow
-              key={item.id}
-              item={item}
-              childOptions={children}
-              selected={selectedIds.has(item.id)}
-              onToggleSelected={toggleSelected}
-              onChange={updateItem}
-            />
-          ))
+          <>
+            <section className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl bg-amber-100 p-2 text-amber-600">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-slate-800">Needs Review</h2>
+                  <p className="text-sm font-medium text-slate-500">
+                    Medium and low confidence items stay open so you can move quickly through the ones that need attention.
+                  </p>
+                </div>
+              </div>
+
+              {needsReviewItems.length === 0 ? (
+                <div className="rounded-[1.75rem] border border-dashed border-emerald-200 bg-emerald-50/80 p-6 text-center shadow-sm">
+                  <p className="text-sm font-black text-emerald-700">No items need review right now.</p>
+                  <p className="mt-1 text-sm font-medium text-emerald-600">Everything parsed with high confidence.</p>
+                </div>
+              ) : (
+                needsReviewItems.map((item) => (
+                  <ImportReviewRow
+                    key={item.id}
+                    item={item}
+                    childOptions={children}
+                    selected={selectedIds.has(item.id)}
+                    expanded
+                    warning
+                    onToggleSelected={toggleSelected}
+                    onToggleExpanded={toggleExpanded}
+                    onChange={updateItem}
+                  />
+                ))
+              )}
+            </section>
+
+            <section className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl bg-emerald-100 p-2 text-emerald-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-slate-800">Ready to Save</h2>
+                  <p className="text-sm font-medium text-slate-500">
+                    High-confidence items stay compact by default so you can approve them faster.
+                  </p>
+                </div>
+              </div>
+
+              {readyItems.length === 0 ? (
+                <div className="rounded-[1.75rem] border border-dashed border-slate-200 bg-slate-50/80 p-6 text-center shadow-sm">
+                  <p className="text-sm font-black text-slate-700">No ready items yet.</p>
+                  <p className="mt-1 text-sm font-medium text-slate-500">High-confidence items will appear here in a lighter review mode.</p>
+                </div>
+              ) : (
+                readyItems.map((item) => (
+                  <ImportReviewRow
+                    key={item.id}
+                    item={item}
+                    childOptions={children}
+                    selected={selectedIds.has(item.id)}
+                    expanded={expandedReadyIds.has(item.id)}
+                    compact
+                    onToggleSelected={toggleSelected}
+                    onToggleExpanded={toggleExpanded}
+                    onChange={updateItem}
+                  />
+                ))
+              )}
+            </section>
+          </>
         )}
       </div>
     </div>
@@ -357,18 +481,5 @@ function ImportReviewContent() {
 }
 
 export default function ImportReviewPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="mx-auto max-w-6xl py-10">
-          <div className="rounded-[2rem] border border-white bg-white/90 p-10 text-center shadow-[0_18px_40px_-24px_rgba(15,23,42,0.28)]">
-            <Loader2 className="mx-auto h-6 w-6 animate-spin text-indigo-500" />
-            <p className="mt-3 text-sm font-medium text-slate-500">Loading import review...</p>
-          </div>
-        </div>
-      }
-    >
-      <ImportReviewContent />
-    </Suspense>
-  )
+  return <ImportReviewContent />
 }

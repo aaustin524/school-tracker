@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { Child } from '@/types'
 import { getSupabase } from '@/lib/supabase'
 import { getMondayOfCurrentWeek } from '@/lib/helpers'
+import { IMPORT_REVIEW_STORAGE_KEY } from '@/components/import-review/types'
 import { Upload, Loader2 } from 'lucide-react'
 
 interface UploadFormProps {
@@ -89,16 +90,15 @@ export function UploadForm({ childOptions }: UploadFormProps) {
 
     const parsed = parseBody
 
-    // 4. Navigate to review page with results in query params
-    const reviewData = encodeURIComponent(
-      JSON.stringify({
-        assignments: parsed.assignments ?? [],
-        study_tasks: parsed.study_tasks ?? [],
-        child_id: selectedChild,
-        document_id: docData.id,
-      })
-    )
-    router.push(`/import/review?data=${reviewData}`)
+    // 4. Stage results in sessionStorage and navigate to review page
+    const reviewData = JSON.stringify({
+      assignments: parsed.assignments ?? [],
+      study_tasks: parsed.study_tasks ?? [],
+      child_id: selectedChild,
+      document_id: docData.id,
+    })
+    sessionStorage.setItem(IMPORT_REVIEW_STORAGE_KEY, reviewData)
+    router.push('/import/review')
   }
 
   return (

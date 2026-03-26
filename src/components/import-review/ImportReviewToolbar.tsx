@@ -6,12 +6,14 @@ import { SUBJECTS } from '@/lib/helpers'
 interface ImportReviewToolbarProps {
   selectedCount: number
   allSelected: boolean
+  readyCount: number
   childOptions: Child[]
   bulkSubject: string
   bulkChild: string
   saving: boolean
   onToggleAll: () => void
   onApproveAll: () => void
+  onApproveReady: () => void
   onDeleteSelected: () => void
   onBulkSubjectChange: (value: string) => void
   onBulkSubjectApply: () => void
@@ -24,12 +26,14 @@ interface ImportReviewToolbarProps {
 export function ImportReviewToolbar({
   selectedCount,
   allSelected,
+  readyCount,
   childOptions,
   bulkSubject,
   bulkChild,
   saving,
   onToggleAll,
   onApproveAll,
+  onApproveReady,
   onDeleteSelected,
   onBulkSubjectChange,
   onBulkSubjectApply,
@@ -49,6 +53,13 @@ export function ImportReviewToolbar({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onApproveReady}
+            disabled={readyCount === 0}
+            className="rounded-full bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-2 text-sm font-black text-white shadow-lg transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Approve all ready items
+          </button>
           <button
             onClick={onToggleAll}
             className="rounded-full bg-slate-100 px-4 py-2 text-sm font-black text-slate-700 transition hover:bg-slate-200"
@@ -120,7 +131,7 @@ export function ImportReviewToolbar({
             >
               <option value="">Choose child</option>
               {childOptions.map((child) => (
-                <option key={child.id} value={child.name}>
+                <option key={child.id} value={child.id}>
                   {child.name}
                 </option>
               ))}
