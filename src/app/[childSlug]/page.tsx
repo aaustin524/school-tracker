@@ -163,8 +163,8 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
 
   return (
     <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${assignment.completed ? 'opacity-55' : ''}`}>
-      <div className="min-w-0 min-h-[84px] px-3 py-2.5">
-        <div className="flex items-start gap-2">
+      <div className="min-w-0 min-h-[104px] px-3.5 py-3">
+        <div className="flex items-start gap-2.5">
           <button
             onClick={() => onToggle(assignment.id, !assignment.completed)}
             className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 font-bold text-xs transition-all ${
@@ -175,27 +175,27 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
           >
             {assignment.completed && '✓'}
           </button>
-          <div className="min-w-0 flex-1 self-stretch pt-0.5">
-            <div className="flex items-start gap-2">
-              <span className={`mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${meta.badgeClass}`}>
+          <div className="min-w-0 flex-1 self-stretch">
+            <div className="flex min-w-0 items-start gap-2">
+              <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${meta.badgeClass}`}>
                 {meta.badge}
               </span>
               <p
-                className={`min-w-0 flex-1 text-[13px] font-bold leading-5 text-slate-800 break-words ${assignment.completed ? 'line-through text-slate-400' : ''}`}
+                className={`min-w-0 flex-1 text-[13px] font-bold leading-5 text-slate-800 ${assignment.completed ? 'line-through text-slate-400' : ''}`}
                 style={{
                   display: '-webkit-box',
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden',
-                  wordBreak: 'break-word',
-                  overflowWrap: 'anywhere',
+                  wordBreak: 'normal',
+                  overflowWrap: 'break-word',
                 }}
                 title={assignment.title}
               >
                 {compactTitle}
               </p>
             </div>
-            <div className="mt-1.5 flex min-w-0 items-center gap-1.5 overflow-hidden pl-[0.125rem] text-xs font-medium text-slate-500">
+            <div className="mt-2 flex min-w-0 items-center gap-1.5 overflow-hidden pl-[0.125rem] text-xs font-medium text-slate-500">
               <span className="truncate">{assignment.subject}</span>
               {relativeLabel && (
                 <>
@@ -211,7 +211,7 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
               )}
             </div>
           </div>
-          <button onClick={() => setOpen((o) => !o)} className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors">
+          <button onClick={() => setOpen((o) => !o)} className="mt-0.5 shrink-0 text-slate-400 hover:text-slate-600 transition-colors">
             <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
           </button>
         </div>
@@ -281,31 +281,31 @@ function AssignmentGroup({
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <button
         onClick={() => setOpen((prev) => !prev)}
-        className="flex min-h-[84px] min-w-0 w-full items-center justify-between px-3 py-2.5 text-left"
+        className="flex min-h-[104px] min-w-0 w-full items-start justify-between px-3.5 py-3 text-left"
       >
-        <div className="min-w-0 pt-0.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${meta.badgeClass}`}>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-start gap-2">
+            <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${meta.badgeClass}`}>
               {meta.badge}
             </span>
-            <span className="text-[13px] font-black leading-5 text-slate-800">{label}</span>
+            <span className="min-w-0 flex-1 text-[13px] font-black leading-5 text-slate-800">{label}</span>
           </div>
           <p
-            className="mt-1 text-xs font-medium text-slate-500"
+            className="mt-2 text-xs font-medium text-slate-500"
             style={{
               display: '-webkit-box',
               WebkitLineClamp: 1,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
-              wordBreak: 'break-word',
-              overflowWrap: 'anywhere',
+              wordBreak: 'normal',
+              overflowWrap: 'break-word',
             }}
             title={items.map((item) => item.title).join('\n')}
           >
             {previewText}
           </p>
         </div>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
 
       <div className={`grid transition-all duration-200 ease-in-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
@@ -674,11 +674,12 @@ export default function ChildPage({ params }: ChildPageProps) {
           </div>
         </div>
       )}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
-          {dayColumns.map(({ day, date, dateStr, tests, study }) => {
-            const isToday = dateStr === todayStr
-            return (
-              <div key={day} className={`rounded-2xl p-3 ${isToday ? 'bg-indigo-50/95 border border-indigo-300 shadow-md sm:-mx-1' : 'bg-white/75 border border-white shadow-sm'}`}>
+        <div className="-mx-1 overflow-x-auto pb-2">
+          <div className="grid min-w-[1120px] grid-cols-5 gap-4 px-1">
+            {dayColumns.map(({ day, date, dateStr, tests, study }) => {
+              const isToday = dateStr === todayStr
+              return (
+                <div key={day} className={`min-w-[208px] rounded-2xl p-3 ${isToday ? 'bg-indigo-50/95 border border-indigo-300 shadow-md' : 'bg-white/75 border border-white shadow-sm'}`}>
                 {/* Day header */}
                 <div className={`mb-3 rounded-xl px-3 py-3 text-center ${isToday ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100'}`}>
                   <div className={`text-xs font-black uppercase tracking-wide ${isToday ? 'text-indigo-200' : 'text-gray-400'}`}>
@@ -705,8 +706,9 @@ export default function ChildPage({ params }: ChildPageProps) {
                   </div>
                 )}
               </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       </div>
 
