@@ -27,13 +27,13 @@ const CHILD_CONFIG: Record<string, { emoji: string; gradient: string }> = {
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 const TYPE_META = {
-  test: { accent: 'bg-red-400', badge: 'Test', badgeClass: 'bg-red-50 text-red-600' },
-  quiz: { accent: 'bg-amber-400', badge: 'Quiz', badgeClass: 'bg-amber-50 text-amber-600' },
-  project: { accent: 'bg-violet-400', badge: 'Project', badgeClass: 'bg-violet-50 text-violet-600' },
-  homework: { accent: 'bg-sky-400', badge: 'Homework', badgeClass: 'bg-sky-50 text-sky-600' },
-  reading: { accent: 'bg-emerald-400', badge: 'Reading', badgeClass: 'bg-emerald-50 text-emerald-600' },
-  other: { accent: 'bg-slate-400', badge: 'Task', badgeClass: 'bg-slate-100 text-slate-600' },
-  study: { accent: 'bg-purple-400', badge: 'Study', badgeClass: 'bg-purple-50 text-purple-600' },
+  test: { badge: 'TEST', badgeClass: 'bg-red-50 text-red-600 border border-red-100' },
+  quiz: { badge: 'QUIZ', badgeClass: 'bg-amber-50 text-amber-700 border border-amber-100' },
+  project: { badge: 'PROJECT', badgeClass: 'bg-violet-50 text-violet-700 border border-violet-100' },
+  homework: { badge: 'HW', badgeClass: 'bg-sky-50 text-sky-700 border border-sky-100' },
+  reading: { badge: 'READ', badgeClass: 'bg-emerald-50 text-emerald-700 border border-emerald-100' },
+  other: { badge: 'TASK', badgeClass: 'bg-slate-100 text-slate-600 border border-slate-200' },
+  study: { badge: 'STUDY', badgeClass: 'bg-purple-50 text-purple-700 border border-purple-100' },
 } as const
 
 // ── Assignment type card ────────────────────────────────────────────
@@ -111,38 +111,26 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
   const meta = TYPE_META[itemType]
 
   return (
-    <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${assignment.completed ? 'opacity-55' : ''} ${isOverdue ? 'ring-1 ring-red-200' : ''}`}>
-      <div className="flex">
-        <div className={`w-1.5 shrink-0 ${meta.accent}`} />
-        <div className="min-w-0 flex-1 px-3 py-2.5">
-          <div className="flex items-start gap-2">
-            <button
-              onClick={() => onToggle(assignment.id, !assignment.completed)}
-              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 font-bold text-xs transition-all ${
-                assignment.completed
-                  ? 'bg-green-400 border-green-400 text-white'
-                  : 'border-slate-300 bg-white hover:border-green-400'
-              }`}
-            >
-              {assignment.completed && '✓'}
-            </button>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className={`rounded-full px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.12em] ${meta.badgeClass}`}>
-                  {meta.badge}
-                </span>
-                {!assignment.completed && isOverdue && (
-                  <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-black text-red-600">Overdue</span>
-                )}
-                {!assignment.completed && isDueToday && (
-                  <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-black text-indigo-600">Today</span>
-                )}
-                {!assignment.completed && isDueTomorrow && (
-                  <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-black text-orange-600">Tomorrow</span>
-                )}
-              </div>
+    <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${assignment.completed ? 'opacity-55' : ''}`}>
+      <div className="min-w-0 px-3 py-2.5">
+        <div className="flex items-start gap-2">
+          <button
+            onClick={() => onToggle(assignment.id, !assignment.completed)}
+            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 font-bold text-xs transition-all ${
+              assignment.completed
+                ? 'border-green-400 bg-green-400 text-white'
+                : 'border-slate-300 bg-white hover:border-green-400'
+            }`}
+          >
+            {assignment.completed && '✓'}
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-2">
+              <span className={`mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${meta.badgeClass}`}>
+                {meta.badge}
+              </span>
               <p
-                className={`mt-1 text-sm font-bold leading-snug text-slate-800 ${assignment.completed ? 'line-through text-slate-400' : ''}`}
+                className={`min-w-0 flex-1 text-sm font-bold leading-snug text-slate-800 ${assignment.completed ? 'line-through text-slate-400' : ''}`}
                 style={compact && !open ? {
                   display: '-webkit-box',
                   WebkitLineClamp: 2,
@@ -152,25 +140,42 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
               >
                 {assignment.title}
               </p>
-              <div className="mt-2 flex items-center gap-2 flex-wrap">
-                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${getSubjectColor(assignment.subject)}`}>
-                  {assignment.subject}
-                </span>
-                <span className="text-[11px] font-bold text-slate-400">{format(new Date(assignment.due_date), 'MMM d')}</span>
-              </div>
             </div>
-            <button onClick={() => setOpen((o) => !o)} className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors">
-              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-            </button>
+            <div className="mt-1.5 flex items-center gap-2 flex-wrap pl-[0.125rem] text-[11px] font-semibold text-slate-500">
+              <span className="truncate">{assignment.subject}</span>
+              <span className="text-slate-300">•</span>
+              <span>{format(new Date(assignment.due_date), 'MMM d')}</span>
+              {!assignment.completed && isOverdue && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span className="font-black text-red-600">Overdue</span>
+                </>
+              )}
+              {!assignment.completed && isDueToday && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span className="font-black text-indigo-600">Today</span>
+                </>
+              )}
+              {!assignment.completed && isDueTomorrow && (
+                <>
+                  <span className="text-slate-300">•</span>
+                  <span className="font-black text-orange-500">Tomorrow</span>
+                </>
+              )}
+            </div>
           </div>
+          <button onClick={() => setOpen((o) => !o)} className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors">
+            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+          </button>
         </div>
       </div>
 
       <div className={`grid transition-all duration-200 ease-in-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
-          <div className={`border-t px-4 py-3 space-y-2 ${assignment.is_study_task ? 'border-purple-100 bg-purple-50/70' : 'border-slate-100 bg-slate-50/90'}`}>
+          <div className="space-y-2 border-t border-slate-100 bg-slate-50/90 px-4 py-3">
             {assignment.notes && (
-              <p className={`text-xs italic ${assignment.is_study_task ? 'text-purple-600' : 'text-slate-500'}`}>{assignment.notes}</p>
+              <p className="text-xs italic text-slate-500">{assignment.notes}</p>
             )}
             {assignment.completed && (
               <div className="flex items-center gap-2">
@@ -227,34 +232,31 @@ function AssignmentGroup({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex">
-        <div className={`w-1.5 shrink-0 ${meta.accent}`} />
-        <button
-          onClick={() => setOpen((prev) => !prev)}
-          className="flex min-w-0 flex-1 items-center justify-between px-3 py-2.5 text-left"
-        >
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.12em] ${meta.badgeClass}`}>
-                {meta.badge}
-              </span>
-              <span className="text-sm font-black text-slate-800">{label}</span>
-            </div>
-            <p
-              className="mt-1 text-xs font-medium text-slate-500"
-              style={{
-                display: '-webkit-box',
-                WebkitLineClamp: 1,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}
-            >
-              {items.map((item) => item.title).join(' • ')}
-            </p>
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex min-w-0 w-full items-center justify-between px-3 py-2.5 text-left"
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${meta.badgeClass}`}>
+              {meta.badge}
+            </span>
+            <span className="text-sm font-black text-slate-800">{label}</span>
           </div>
-          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-        </button>
-      </div>
+          <p
+            className="mt-1 text-xs font-medium text-slate-500"
+            style={{
+              display: '-webkit-box',
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {items.map((item) => item.title).join(' • ')}
+          </p>
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
 
       <div className={`grid transition-all duration-200 ease-in-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
@@ -604,10 +606,7 @@ export default function ChildPage({ params }: ChildPageProps) {
             📅 This Week · {format(start, 'MMMM d')}
           </h2>
           <div className="flex items-center gap-3 text-xs font-black">
-            <span className="flex items-center gap-1 bg-red-100 text-red-700 rounded-full px-3 py-1">📋 Test / Quiz</span>
-            <span className="flex items-center gap-1 bg-purple-100 text-purple-700 rounded-full px-3 py-1">🔬 Project</span>
-            <span className="flex items-center gap-1 bg-blue-100 text-blue-700 rounded-full px-3 py-1">📝 Homework</span>
-            <span className="flex items-center gap-1 bg-purple-50 border border-purple-200 text-purple-600 rounded-full px-3 py-1">🧠 Study Task</span>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-500">Consistent weekly cards</span>
             <div className="ml-auto">
               <AddAssignmentDialog childOptions={children} onAdded={loadData} />
             </div>
