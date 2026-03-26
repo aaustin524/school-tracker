@@ -220,7 +220,7 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
 
       <div className={`grid transition-all duration-200 ease-in-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
-          <div className="space-y-2 border-t border-slate-100 bg-slate-50/90 px-4 py-3">
+          <div className="space-y-2.5 border-t border-slate-100 bg-slate-50/90 px-4 py-3">
             {assignment.notes && (
               <p className="text-xs italic text-slate-500">{assignment.notes}</p>
             )}
@@ -302,7 +302,7 @@ function AssignmentGroup({
             <ChevronDown className={`mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
           </div>
           <p
-            className="mt-2 text-xs font-medium text-slate-500"
+            className="mt-2 text-xs font-medium text-slate-400"
             style={{
               display: '-webkit-box',
               WebkitLineClamp: 1,
@@ -329,7 +329,7 @@ function AssignmentGroup({
 
       <div className={`grid transition-all duration-200 ease-in-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
-          <div className="space-y-2 border-t border-slate-100 bg-slate-50/80 p-3">
+          <div className="space-y-2.5 border-t border-slate-100 bg-slate-50/80 p-3">
             {items.map((item) => (
               <AssignmentItemCard
                 key={item.id}
@@ -693,7 +693,10 @@ export default function ChildPage({ params }: ChildPageProps) {
           </div>
         </div>
       )}
-        <div className="-mx-1 overflow-x-auto pb-2">
+        <div className="relative -mx-1">
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-5 bg-gradient-to-r from-white/80 to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-5 bg-gradient-to-l from-white/80 to-transparent" />
+          <div className="overflow-x-auto pb-2 [scrollbar-color:rgba(148,163,184,0.45)_transparent] [scrollbar-width:thin]">
           <div className="grid min-w-[1120px] grid-cols-5 gap-4 px-1">
             {dayColumns.map(({ day, date, dateStr, tests, study }) => {
               const isToday = dateStr === todayStr
@@ -727,6 +730,7 @@ export default function ChildPage({ params }: ChildPageProps) {
               </div>
               )
             })}
+          </div>
           </div>
         </div>
       </div>
