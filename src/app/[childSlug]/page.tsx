@@ -26,6 +26,15 @@ const CHILD_CONFIG: Record<string, { emoji: string; gradient: string }> = {
 }
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+const TYPE_META = {
+  test: { accent: 'bg-red-400', badge: 'Test', badgeClass: 'bg-red-50 text-red-600' },
+  quiz: { accent: 'bg-amber-400', badge: 'Quiz', badgeClass: 'bg-amber-50 text-amber-600' },
+  project: { accent: 'bg-violet-400', badge: 'Project', badgeClass: 'bg-violet-50 text-violet-600' },
+  homework: { accent: 'bg-sky-400', badge: 'Homework', badgeClass: 'bg-sky-50 text-sky-600' },
+  reading: { accent: 'bg-emerald-400', badge: 'Reading', badgeClass: 'bg-emerald-50 text-emerald-600' },
+  other: { accent: 'bg-slate-400', badge: 'Task', badgeClass: 'bg-slate-100 text-slate-600' },
+  study: { accent: 'bg-purple-400', badge: 'Study', badgeClass: 'bg-purple-50 text-purple-600' },
+} as const
 
 // ── Assignment type card ────────────────────────────────────────────
 function CollapsibleSection({
@@ -65,7 +74,7 @@ function CollapsibleSection({
   )
 }
 
-function TestCard({ assignment, onToggle, onDelete, onEdit, compact = false }: {
+function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = false }: {
   assignment: Assignment
   onToggle: (id: string, completed: boolean) => void
   onDelete: (id: string) => void
@@ -98,80 +107,74 @@ function TestCard({ assignment, onToggle, onDelete, onEdit, compact = false }: {
   const isOverdue = !assignment.completed && assignment.due_date < todayStr
   const isDueToday = assignment.due_date === todayStr
   const isDueTomorrow = assignment.due_date === tomorrowStr
-  const isHighPriority = assignment.type === 'test' || assignment.type === 'quiz'
-
-  const typeLabel = assignment.type === 'test' ? '📋 TEST'
-    : assignment.type === 'quiz' ? '✏️ QUIZ'
-    : assignment.type === 'project' ? '🔬 PROJECT'
-    : '📝 HW'
-
-  const borderColor = isOverdue
-    ? 'border-red-400'
-    : assignment.type === 'test' || assignment.type === 'quiz'
-    ? 'border-red-300'
-    : assignment.type === 'project'
-    ? 'border-purple-300'
-    : 'border-blue-200'
-
-  const badgeColor = assignment.type === 'test' || assignment.type === 'quiz'
-    ? 'bg-red-100 text-red-700'
-    : assignment.type === 'project'
-    ? 'bg-purple-100 text-purple-700'
-    : 'bg-blue-100 text-blue-700'
+  const itemType = assignment.is_study_task ? 'study' : assignment.type
+  const meta = TYPE_META[itemType]
 
   return (
-    <div className={`rounded-xl border-2 bg-white overflow-hidden ${borderColor} ${assignment.completed ? 'opacity-50' : ''}`}>
-      {/* Header */}
-      <div className="px-4 pt-3 pb-3">
-        {/* Row 1: complete button + type badge + urgency + chevron */}
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => onToggle(assignment.id, !assignment.completed)}
-            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 font-bold text-xs transition-all ${
-              assignment.completed
-                ? 'bg-green-400 border-green-400 text-white'
-                : 'border-gray-300 bg-white hover:border-green-400'
-            }`}
-          >
-            {assignment.completed && '✓'}
-          </button>
-          <span className={`rounded-full px-1.5 py-0.5 text-xs font-black ${badgeColor}`}>{typeLabel}</span>
-          {!assignment.completed && isOverdue && (
-            <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-black text-white">Overdue</span>
-          )}
-          {!assignment.completed && isDueToday && isHighPriority && (
-            <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-xs font-black text-white animate-pulse">Today!</span>
-          )}
-          {!assignment.completed && isDueTomorrow && isHighPriority && (
-            <span className="rounded-full bg-orange-400 px-1.5 py-0.5 text-xs font-black text-white">Tmrw</span>
-          )}
-          <div className="flex-1" />
-          <button onClick={() => setOpen((o) => !o)} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
-            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-          </button>
+    <div className={`overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${assignment.completed ? 'opacity-55' : ''} ${isOverdue ? 'ring-1 ring-red-200' : ''}`}>
+      <div className="flex">
+        <div className={`w-1.5 shrink-0 ${meta.accent}`} />
+        <div className="min-w-0 flex-1 px-3 py-2.5">
+          <div className="flex items-start gap-2">
+            <button
+              onClick={() => onToggle(assignment.id, !assignment.completed)}
+              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 font-bold text-xs transition-all ${
+                assignment.completed
+                  ? 'bg-green-400 border-green-400 text-white'
+                  : 'border-slate-300 bg-white hover:border-green-400'
+              }`}
+            >
+              {assignment.completed && '✓'}
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.12em] ${meta.badgeClass}`}>
+                  {meta.badge}
+                </span>
+                {!assignment.completed && isOverdue && (
+                  <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-black text-red-600">Overdue</span>
+                )}
+                {!assignment.completed && isDueToday && (
+                  <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-black text-indigo-600">Today</span>
+                )}
+                {!assignment.completed && isDueTomorrow && (
+                  <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-black text-orange-600">Tomorrow</span>
+                )}
+              </div>
+              <p
+                className={`mt-1 text-sm font-bold leading-snug text-slate-800 ${assignment.completed ? 'line-through text-slate-400' : ''}`}
+                style={compact && !open ? {
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                } : undefined}
+              >
+                {assignment.title}
+              </p>
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${getSubjectColor(assignment.subject)}`}>
+                  {assignment.subject}
+                </span>
+                <span className="text-[11px] font-bold text-slate-400">{format(new Date(assignment.due_date), 'MMM d')}</span>
+              </div>
+            </div>
+            <button onClick={() => setOpen((o) => !o)} className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors">
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
         </div>
-        {/* Row 2: title — full width, wraps freely */}
-        <p className={`mt-1.5 ml-6 pr-1 text-sm font-bold text-gray-800 leading-snug ${assignment.completed ? 'line-through' : ''}`}>
-          {compact && !open ? (
-            <span className="block truncate">{assignment.title}</span>
-          ) : (
-            assignment.title
-          )}
-        </p>
       </div>
-      {/* Details — smooth height animation via CSS grid trick */}
+
       <div className={`grid transition-all duration-200 ease-in-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
-          <div className="border-t border-gray-100 bg-gray-50 px-4 py-3 space-y-1.5">
-            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${getSubjectColor(assignment.subject)}`}>
-              {assignment.subject}
-            </span>
+          <div className={`border-t px-4 py-3 space-y-2 ${assignment.is_study_task ? 'border-purple-100 bg-purple-50/70' : 'border-slate-100 bg-slate-50/90'}`}>
             {assignment.notes && (
-              <p className="text-xs text-gray-500 italic">{assignment.notes}</p>
+              <p className={`text-xs italic ${assignment.is_study_task ? 'text-purple-600' : 'text-slate-500'}`}>{assignment.notes}</p>
             )}
             {assignment.completed && (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 font-medium">Score:</span>
+                <span className="text-xs text-slate-500 font-medium">Score:</span>
                 {assignment.score != null && (
                   <span className={`rounded-full px-2 py-0.5 text-xs font-black ${scoreColor}`}>
                     {assignment.score}/100
@@ -184,7 +187,7 @@ function TestCard({ assignment, onToggle, onDelete, onEdit, compact = false }: {
                   onBlur={handleScoreSave}
                   onKeyDown={(e) => e.key === 'Enter' && handleScoreSave()}
                   placeholder="0–100"
-                  className="w-20 rounded-lg border border-gray-300 px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  className="w-20 rounded-lg border border-slate-300 px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
                 />
               </div>
             )}
@@ -204,70 +207,127 @@ function TestCard({ assignment, onToggle, onDelete, onEdit, compact = false }: {
   )
 }
 
-function StudyCard({ assignment, onToggle, onDelete, onEdit, compact = false }: {
-  assignment: Assignment
+function AssignmentGroup({
+  label,
+  items,
+  onToggle,
+  onDelete,
+  onEdit,
+}: {
+  label: string
+  items: Assignment[]
   onToggle: (id: string, completed: boolean) => void
   onDelete: (id: string) => void
   onEdit: (updated: Assignment) => void
-  compact?: boolean
 }) {
-  const [open, setOpen] = useState(!compact)
+  const [open, setOpen] = useState(false)
+  const sample = items[0]
+  const itemType = sample.is_study_task ? 'study' : sample.type
+  const meta = TYPE_META[itemType]
 
   return (
-    <div className={`rounded-xl border-2 border-purple-200 bg-white overflow-hidden ${assignment.completed ? 'opacity-50' : ''}`}>
-      {/* Header */}
-      <div className="px-4 pt-3 pb-3">
-        {/* Row 1: complete button + badge + chevron */}
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => onToggle(assignment.id, !assignment.completed)}
-            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 font-bold text-xs transition-all ${
-              assignment.completed
-                ? 'bg-green-400 border-green-400 text-white'
-                : 'border-purple-300 bg-white hover:border-green-400'
-            }`}
-          >
-            {assignment.completed && '✓'}
-          </button>
-          <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-black text-purple-700">🧠 STUDY</span>
-          <div className="flex-1" />
-          <button onClick={() => setOpen((o) => !o)} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
-            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-          </button>
-        </div>
-        {/* Row 2: title — full width, wraps freely */}
-        <p className={`mt-1.5 ml-6 pr-1 text-sm font-bold text-gray-800 leading-snug ${assignment.completed ? 'line-through' : ''}`}>
-          {compact && !open ? (
-            <span className="block truncate">{assignment.title}</span>
-          ) : (
-            assignment.title
-          )}
-        </p>
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex">
+        <div className={`w-1.5 shrink-0 ${meta.accent}`} />
+        <button
+          onClick={() => setOpen((prev) => !prev)}
+          className="flex min-w-0 flex-1 items-center justify-between px-3 py-2.5 text-left"
+        >
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.12em] ${meta.badgeClass}`}>
+                {meta.badge}
+              </span>
+              <span className="text-sm font-black text-slate-800">{label}</span>
+            </div>
+            <p
+              className="mt-1 text-xs font-medium text-slate-500"
+              style={{
+                display: '-webkit-box',
+                WebkitLineClamp: 1,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {items.map((item) => item.title).join(' • ')}
+            </p>
+          </div>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        </button>
       </div>
-      {/* Details — smooth height animation */}
+
       <div className={`grid transition-all duration-200 ease-in-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
         <div className="overflow-hidden">
-          <div className="border-t border-purple-100 bg-purple-50 px-4 py-3 space-y-1.5">
-            <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${getSubjectColor(assignment.subject)}`}>
-              {assignment.subject}
-            </span>
-            {assignment.notes && (
-              <p className="text-xs text-purple-600 italic">{assignment.notes}</p>
-            )}
-            <div className="flex items-center gap-3 pt-0.5">
-              <EditAssignmentDialog assignment={assignment} onSaved={onEdit} />
-              <button
-                onClick={() => onDelete(assignment.id)}
-                className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 font-semibold transition-colors"
-              >
-                <Trash2 className="h-3 w-3" /> Delete
-              </button>
-            </div>
+          <div className="space-y-2 border-t border-slate-100 bg-slate-50/80 p-3">
+            {items.map((item) => (
+              <AssignmentItemCard
+                key={item.id}
+                assignment={item}
+                compact
+                onToggle={onToggle}
+                onDelete={onDelete}
+                onEdit={onEdit}
+              />
+            ))}
           </div>
         </div>
       </div>
     </div>
   )
+}
+
+function countLabel(type: string, count: number) {
+  const labels: Record<string, string> = {
+    test: count === 1 ? 'Test' : 'Tests',
+    quiz: count === 1 ? 'Quiz' : 'Quizzes',
+    project: count === 1 ? 'Project' : 'Projects',
+    homework: count === 1 ? 'Homework Item' : 'Homework Items',
+    reading: count === 1 ? 'Reading Task' : 'Reading Tasks',
+    other: count === 1 ? 'Task' : 'Tasks',
+    study: count === 1 ? 'Study Task' : 'Study Tasks',
+  }
+  return `${count} ${labels[type] ?? 'Items'}`
+}
+
+function renderDayAssignmentGroups({
+  items,
+  onToggle,
+  onDelete,
+  onEdit,
+}: {
+  items: Assignment[]
+  onToggle: (id: string, completed: boolean) => void
+  onDelete: (id: string) => void
+  onEdit: (updated: Assignment) => void
+}) {
+  const groups = new Map<string, Assignment[]>()
+
+  items.forEach((item) => {
+    const key = item.is_study_task ? 'study' : item.type
+    groups.set(key, [...(groups.get(key) ?? []), item])
+  })
+
+  return Array.from(groups.entries()).map(([key, groupedItems]) => (
+    groupedItems.length > 1 ? (
+      <AssignmentGroup
+        key={`${key}-${groupedItems[0].due_date}`}
+        label={countLabel(key, groupedItems.length)}
+        items={groupedItems}
+        onToggle={onToggle}
+        onDelete={onDelete}
+        onEdit={onEdit}
+      />
+    ) : (
+      <AssignmentItemCard
+        key={groupedItems[0].id}
+        assignment={groupedItems[0]}
+        compact
+        onToggle={onToggle}
+        onDelete={onDelete}
+        onEdit={onEdit}
+      />
+    )
+  ))
 }
 
 export default function ChildPage({ params }: ChildPageProps) {
@@ -279,7 +339,6 @@ export default function ChildPage({ params }: ChildPageProps) {
   const [weekOffset, setWeekOffset] = useState(0)
   const [editingNotes, setEditingNotes] = useState(false)
   const [notesText, setNotesText] = useState('')
-  const [expandedStudyGroups, setExpandedStudyGroups] = useState<Record<string, boolean>>({})
   const pendingDeletes = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
   const loadData = useCallback(async () => {
@@ -405,10 +464,6 @@ export default function ChildPage({ params }: ChildPageProps) {
     .filter((a) => !a.completed && a.due_date > todayStr && a.due_date <= format(addDays(new Date(), 2), 'yyyy-MM-dd'))
     .sort((a, b) => a.due_date.localeCompare(b.due_date))
   const todaysFocus = [...todayItems, ...urgentUpcoming].slice(0, 3)
-
-  function toggleStudyGroup(dateStr: string) {
-    setExpandedStudyGroups((prev) => ({ ...prev, [dateStr]: !prev[dateStr] }))
-  }
 
   return (
     <div className="space-y-6">
@@ -564,8 +619,8 @@ export default function ChildPage({ params }: ChildPageProps) {
           <h2 className="text-sm font-black uppercase tracking-wider text-red-500 mb-3">⚠️ Overdue</h2>
           <div className="space-y-2">
             {overdue.map((a) => a.is_study_task
-              ? <StudyCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
-              : <TestCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+              ? <AssignmentItemCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+              : <AssignmentItemCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
             )}
           </div>
         </div>
@@ -573,11 +628,10 @@ export default function ChildPage({ params }: ChildPageProps) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
           {dayColumns.map(({ day, date, dateStr, tests, study }) => {
             const isToday = dateStr === todayStr
-            const studiesExpanded = expandedStudyGroups[dateStr]
             return (
-              <div key={day} className={`rounded-2xl p-3 shadow-sm ${isToday ? 'bg-indigo-50 border-2 border-indigo-400 scale-[1.01]' : 'bg-white/70 border border-white'}`}>
+              <div key={day} className={`rounded-2xl p-3 ${isToday ? 'bg-indigo-50/95 border border-indigo-300 shadow-md sm:-mx-1' : 'bg-white/75 border border-white shadow-sm'}`}>
                 {/* Day header */}
-                <div className={`mb-3 rounded-xl py-3 px-3 text-center ${isToday ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100'}`}>
+                <div className={`mb-3 rounded-xl px-3 py-3 text-center ${isToday ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-100'}`}>
                   <div className={`text-xs font-black uppercase tracking-wide ${isToday ? 'text-indigo-200' : 'text-gray-400'}`}>
                     {day.slice(0, 3)}
                   </div>
@@ -587,54 +641,14 @@ export default function ChildPage({ params }: ChildPageProps) {
                   {isToday && <div className="text-xs font-black text-indigo-200">Today</div>}
                 </div>
 
-                {/* Tests & assignments */}
-                {tests.length > 0 && (
-                  <div className="space-y-2 mb-2">
-                    {tests.map((a) => (
-                      <TestCard key={a.id} assignment={a} compact onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
-                    ))}
-                  </div>
-                )}
-
-                {/* Divider if both exist */}
-                {tests.length > 0 && study.length > 0 && (
-                  <div className="flex items-center gap-1 my-2">
-                    <div className="flex-1 h-px bg-purple-200" />
-                    <span className="text-xs text-purple-300 font-bold">study</span>
-                    <div className="flex-1 h-px bg-purple-200" />
-                  </div>
-                )}
-
-                {/* Study tasks */}
-                {study.length > 0 && (
-                  <div className="space-y-2">
-                    {study.length > 1 ? (
-                      <div className="rounded-2xl border border-purple-200 bg-purple-50/80 p-3">
-                        <button
-                          onClick={() => toggleStudyGroup(dateStr)}
-                          className="flex w-full items-center justify-between text-left"
-                        >
-                          <div>
-                            <p className="text-xs font-black uppercase tracking-wider text-purple-500">Study Tasks</p>
-                            <p className="text-sm font-black text-purple-700">{study.length} Study Tasks</p>
-                          </div>
-                          <ChevronDown className={`h-4 w-4 text-purple-400 transition-transform ${studiesExpanded ? 'rotate-180' : ''}`} />
-                        </button>
-                        {studiesExpanded && (
-                          <div className="mt-3 space-y-2">
-                            {study.map((a) => (
-                              <StudyCard key={a.id} assignment={a} compact onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      study.map((a) => (
-                        <StudyCard key={a.id} assignment={a} compact onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
-                      ))
-                    )}
-                  </div>
-                )}
+                <div className="space-y-2.5">
+                  {renderDayAssignmentGroups({
+                    items: [...tests, ...study],
+                    onToggle: handleToggleComplete,
+                    onDelete: handleDelete,
+                    onEdit: handleEdit,
+                  })}
+                </div>
 
                 {tests.length === 0 && study.length === 0 && (
                   <div className="rounded-xl border-2 border-dashed border-gray-200 p-3 text-center text-xs font-bold text-gray-300">
@@ -716,8 +730,8 @@ export default function ChildPage({ params }: ChildPageProps) {
           <div className="space-y-2">
             {assignments.filter((a) => a.completed).map((a) =>
               a.is_study_task
-                ? <StudyCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
-                : <TestCard  key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+                ? <AssignmentItemCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
+                : <AssignmentItemCard key={a.id} assignment={a} onToggle={handleToggleComplete} onDelete={handleDelete} onEdit={handleEdit} />
             )}
           </div>
         </CollapsibleSection>
