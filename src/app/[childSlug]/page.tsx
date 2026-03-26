@@ -36,6 +36,15 @@ const TYPE_META = {
   study: { badge: 'STUDY', badgeClass: 'bg-purple-50 text-purple-700 border border-purple-100' },
 } as const
 
+function buildGroupPreview(items: Assignment[]) {
+  if (items.length === 0) return ''
+  if (items.length === 1) return items[0].title
+
+  const first = items[0].title
+  const remaining = items.length - 1
+  return `${first} + ${remaining} more`
+}
+
 // ── Assignment type card ────────────────────────────────────────────
 function CollapsibleSection({
   title,
@@ -131,25 +140,27 @@ function AssignmentItemCard({ assignment, onToggle, onDelete, onEdit, compact = 
           >
             {assignment.completed && '✓'}
           </button>
-          <div className="min-w-0 flex-1 self-stretch">
+          <div className="min-w-0 flex-1 self-stretch pt-0.5">
             <div className="flex items-start gap-2">
               <span className={`mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${meta.badgeClass}`}>
                 {meta.badge}
               </span>
               <p
-                className={`min-w-0 flex-1 text-sm font-bold leading-snug text-slate-800 ${assignment.completed ? 'line-through text-slate-400' : ''}`}
+                className={`min-w-0 flex-1 text-[13px] font-bold leading-5 text-slate-800 break-words ${assignment.completed ? 'line-through text-slate-400' : ''}`}
                 style={{
                   display: '-webkit-box',
                   WebkitLineClamp: compact ? 1 : 2,
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere',
                 }}
                 title={assignment.title}
               >
                 {assignment.title}
               </p>
             </div>
-            <div className="mt-1.5 flex items-center gap-1.5 overflow-hidden pl-[0.125rem] text-[11px] font-medium text-slate-400">
+            <div className="mt-1.5 flex min-w-0 items-center gap-1.5 overflow-hidden pl-[0.125rem] text-xs font-medium text-slate-500">
               <span className="truncate">{assignment.subject}</span>
               {relativeLabel && (
                 <>
@@ -236,23 +247,25 @@ function AssignmentGroup({
         onClick={() => setOpen((prev) => !prev)}
         className="flex min-h-[84px] min-w-0 w-full items-center justify-between px-3 py-2.5 text-left"
       >
-        <div className="min-w-0">
+        <div className="min-w-0 pt-0.5">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] ${meta.badgeClass}`}>
               {meta.badge}
             </span>
-            <span className="text-sm font-black text-slate-800">{label}</span>
+            <span className="text-[13px] font-black leading-5 text-slate-800">{label}</span>
           </div>
           <p
-            className="mt-1 text-xs font-medium text-slate-400"
+            className="mt-1 text-xs font-medium text-slate-500"
             style={{
               display: '-webkit-box',
               WebkitLineClamp: 1,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
             }}
           >
-            {items.map((item) => item.title).join(' • ')}
+            {buildGroupPreview(items)}
           </p>
         </div>
         <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
