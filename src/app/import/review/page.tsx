@@ -70,12 +70,17 @@ function ImportReviewContent() {
 
   useEffect(() => {
     const rawData = searchParams.get('data')
+    let mounted = true
 
-    getSupabase()
-      .from('children')
-      .select('*')
-      .order('name')
-      .then(({ data }) => {
+    async function loadChildrenAndData() {
+      try {
+        const { data } = await getSupabase()
+          .from('children')
+          .select('*')
+          .order('name')
+
+        if (!mounted) return
+
         const childData = data ?? []
         setChildren(childData)
 
@@ -92,8 +97,18 @@ function ImportReviewContent() {
         } catch {
           setDataError('We could not read the parsed import data. Please try uploading again.')
         }
-      })
-      .finally(() => setLoadingChildren(false))
+      } finally {
+        if (mounted) {
+          setLoadingChildren(false)
+        }
+      }
+    }
+
+    loadChildrenAndData()
+
+    return () => {
+      mounted = false
+    }
   }, [searchParams])
 
   const selectedCount = selectedIds.size
